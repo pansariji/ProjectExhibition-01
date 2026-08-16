@@ -1,55 +1,58 @@
 # LocalDrop
 
-LocalDrop is a local network peer-to-peer file sharing tool built with Python and Tkinter. It allows two laptops on the same Wi-Fi network to discover each other using a passcode and transfer files securely without needing external cloud services.
+LocalDrop is a local network peer-to-peer file and folder sharing tool built with Python and Tkinter. It allows laptops and mobile devices on the same Wi-Fi network to transfer files and complete folder structures securely without needing external cloud services.
 
 ## Features
-- **Passcode-based pairing**: Simplifies the connection process by using a 4-digit passcode instead of typing IP addresses.
-- **Local Network (LAN)**: Transfers files entirely over the local network for speed and privacy.
-- **Large File Support**: Files are streamed in chunks, supporting arbitrarily large files without loading them entirely into memory.
-- **Progress Tracking**: Real-time progress bar and transfer speed (MB/s).
-- **Simple GUI**: Easy-to-use Tkinter interface.
+- **Bidirectional Zero-Install Web Sharing (QR Code)**:
+  - **Upload to Laptop**: Scan the QR code displayed in the Laptop's Receive mode to upload files or full folder trees from mobile browsers (iPhone or Android).
+  - **Download from Laptop**: Scan the QR code displayed in the Laptop's Send mode to download selected files or auto-zipped folder archives directly to your phone.
+- **Passcode-based Laptop-to-Laptop Pairing**: Simplifies app-to-app connection using a 4-digit passcode instead of typing IP addresses.
+- **Local Network (LAN)**: Transfers files and folders entirely over the local network for maximum speed and privacy.
+- **File & Folder Support**: Transfer individual files or complete directory structures with nested subfolders while preserving folder hierarchy (`webkitdirectory` & `.zip` stream support).
+- **Large File Support**: Files are streamed in chunks, supporting arbitrarily large files and folders without loading them entirely into memory.
+- **Progress Tracking**: Real-time progress bar and overall transfer speed (MB/s).
+- **Simple GUI**: Easy-to-use Tkinter interface with tabbed modes for both Sending and Receiving.
 
 ## Prerequisites
 - Python 3.x
-- No external dependencies required (uses built-in `socket`, `threading`, and `tkinter` modules).
+- Optional dependencies for QR code display:
+  ```bash
+  pip install qrcode pillow
+  ```
 
 ## How to Run
 
-1. Open a terminal or command prompt.
-2. Navigate to the directory containing the LocalDrop files.
-3. Run the main application:
+1. Open a terminal or command prompt in the project directory.
+2. Run the main application:
    ```bash
-   python3 main.py
+   python main.py
    ```
-4. **On the Receiving Computer:**
-   - Click "Receive Files".
-   - You will be shown a 4-digit passcode. Keep this screen open.
-5. **On the Sending Computer:**
-   - Run `python3 main.py` on the second computer.
-   - Click "Send Files".
-   - Select a file you want to transfer.
-   - Enter the 4-digit passcode displayed on the receiver's screen.
-   - Click "Send".
 
-The file will be transferred and saved in a `Downloads` folder created in the same directory as the script on the receiving computer.
+### 📱 Sharing with Mobile via QR Code (Zero-Install)
+- **To Receive from Mobile:** Click **Receive File / Folder** -> select **📱 Mobile (QR Code)** -> Scan the QR code with phone camera -> Upload files or folders from your phone!
+- **To Send to Mobile:** Click **Send File / Folder** -> select a file or folder -> select **📱 Mobile (QR Code)** -> Scan the QR code with phone camera -> Tap **Download** on your phone!
 
-## How it Works (For Viva/Academic Review)
+### 💻 Laptop-to-Laptop Transfer (Passcode Mode)
+- **On Receiver Laptop:** Click **Receive File / Folder** -> select **💻 Laptop (Passcode)** tab to view 4-digit passcode.
+- **On Sender Laptop:** Click **Send File / Folder** -> select file/folder -> select **💻 Laptop (Passcode)** tab -> enter passcode -> click **Send Now**.
 
-LocalDrop uses a combination of UDP (User Datagram Protocol) and TCP (Transmission Control Protocol) to achieve seamless file transfer without manual IP configuration.
+---
 
-### 1. UDP Discovery (The Passcode System)
-- **Receiver**: When set to receive mode, the app generates a random 4-digit passcode and starts listening for UDP broadcast packets on a specific port (50025).
-- **Sender**: When sending a file, the app broadcasts a UDP packet to the entire local subnet containing the passcode (e.g., `LOCALDROP_DISCOVER:1234`).
-- **Pairing**: If the receiver hears this broadcast and the passcode matches its generated passcode, it replies directly to the sender with its IP address and a dynamically assigned TCP port (e.g., `LOCALDROP_ACCEPT:56789`).
+## How it Works (Technical Architecture)
 
-*Why UDP?* UDP supports broadcasting, allowing the sender to shout to all devices on the network "Who has this passcode?" without knowing the receiver's IP address in advance.
+LocalDrop combines three networking modes to achieve seamless cross-device sharing without cloud servers or manual IP setup:
 
-### 2. TCP File Transfer
-- **Connection**: Once the sender receives the receiver's IP and TCP port from the UDP response, it establishes a dedicated TCP connection.
-- **Protocol**: The sender transmits the filename length, the filename itself, and the total file size as headers.
-- **Streaming**: The sender reads the file in small chunks (e.g., 8192 bytes) and sends them over the TCP socket. The receiver writes these chunks to disk as they arrive.
+### 1. Zero-Install Mobile Web Server (HTTP + QR Code)
+- **QR Code Generation**: Uses `qrcode` and `Pillow` to encode `http://<laptop_local_ip>:8080` into a QR image displayed on the Tkinter canvas.
+- **Web Receiver (`POST /upload`)**: Python's `http.server` hosts an embedded mobile HTML5 Web App. Uses `webkitdirectory` to capture relative directory paths (`X-Relative-Path`) and reconstructs nested folder trees on disk inside `Downloads/`.
+- **Web Sender (`GET /download`)**: Displays a mobile download interface. For single files, streams raw file bytes. For folders, dynamically packages the directory into a `.zip` archive on-the-fly for single-tap mobile downloads.
 
-*Why TCP?* TCP is connection-oriented and guarantees delivery, order, and error-checking. This ensures the file is transferred reliably without data corruption or missing bytes.
+### 2. UDP Discovery (Passcode System for Laptops)
+- **Receiver**: Generates a random 4-digit passcode and listens for UDP broadcast packets on port 50025.
+- **Sender**: Broadcasts a UDP packet to the local subnet containing the passcode (e.g., `LOCALDROP_DISCOVER:1234`).
+- **Pairing**: Receiver replies with its IP address and dynamic TCP port (`LOCALDROP_ACCEPT:56789`).
 
-### 3. Threading
-Both the sender and receiver use Python's `threading` module to run the networking operations in the background. If this were run on the main thread, the Tkinter GUI would freeze and become unresponsive while waiting for a connection or during a long file transfer.
+### 3. TCP File & Folder Protocol
+- **Header Flags**: Transmits `'F'` for single files or `'D'` for directory trees.
+- **Directory Manifest**: Sends entry counts, aggregate size, relative path metadata, and streams chunked file data (16 KB chunks).
+- **Disk Reconstruction**: Recreates missing directory trees and streams data directly to disk.
