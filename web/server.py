@@ -1,0 +1,263 @@
+import http.server
+import socketserver
+import threading
+import urllib.parse
+import os
+import time
+import shutil
+import tempfile
+
+import config
+from utils import get_local_ip, format_size
+from web.templates import MOBILE_UPLOAD_HTML_PAGE, MOBILE_DOWNLOAD_HTML_PAGE
+
+class LocalDropHTTPHandler(http.server.BaseHTTPRequestHandler):
+    def log_message(self, format, *args):
+        pass
+
+    def do_GET(self):
+        # Receiver Mode (Mobile Uploads to Laptop)
+        if hasattr(self.server, 'web_receiver'):
+            if self.path == '/' or self.path == '/index.html':
+                self.send_response(200)
+                self.send_header('Content-type', 'text/html; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(MOBILE_UPLOAD_HTML_PAGE.encode('utf-8'))
+            else:
+                self.send_error(404, "Not Found")
+                
+        # Sender Mode (Mobile Downloads from Laptop)
+        elif hasattr(self.server, 'web_sender'):
+            ws = self.server.web_sender
+            if self.path == '/' or self.path == '/index.html':
+                item_name = os.path.basename(ws.target_filename)
+                item_size = format_size(ws.file_size)
+                icon = "📦" if ws.is_dir else "📄"
+                item_type = "Folder (.zip)" if ws.is_dir else "File"
+
+                page = MOBILE_DOWNLOAD_HTML_PAGE.replace("{{ICON}}", icon)\
+                                                .replace("{{ITEM_NAME}}", item_name)\
+                                                .replace("{{ITEM_SIZE}}", item_size)\
+                                                .replace("{{ITEM_TYPE}}", item_type)
+                
+                self.send_response(200)
+                self.send_header('Content-type', 'text/html; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(page.encode('utf-8'))
+
+            elif self.path == '/download':
+                try:
+                    file_path = ws.serve_path
+                    filename = os.path.basename(ws.target_filename)
+
+                    self.send_response(200)
+                    self.send_header('Content-type', 'application/octet-stream')
+                    self.send_header('Content-Disposition', f'attachment; filename="{filename}"')
+                    self.send_header('Content-Length', str(ws.file_size))
+                    self.end_headers()
+
+                    sent = 0
+                    start_time = time.time()
+                    last_update = start_time
+                    last_sent = 0
+
+                    with open(file_path, 'rb') as f:
+                        while sent < ws.file_size and ws.running:
+                            chunk = f.read(config.CHUNK_SIZE_WEB)
+                            if not chunk:
+                                break
+                            self.wfile.write(chunk)
+                            sent += len(chunk)
+
+                            now = time.time()
+                            if now - last_update > 0.1:
+                                ws.notify_progress(sent, ws.file_size, now - last_update, sent - last_sent)
+                                last_update = now
+                                last_sent = sent
+
+                    ws.notify_complete(True)
+
+                except Exception as e:
+                    ws.notify_complete(False)
+                    self.send_error(500, f"Download Error: {e}")
+            else:
+                self.send_error(404, "Not Found")
+
+    def do_POST(self):
+        if hasattr(self.server, 'web_receiver') and self.path == '/upload':
+            try:
+                raw_relpath = self.headers.get('X-Relative-Path', '')
+                rel_path = urllib.parse.unquote(raw_relpath) if raw_relpath else "uploaded_file"
+                content_len = int(self.headers.get('Content-Length', 0))
+
+                downloads_dir = self.server.web_receiver.downloads_dir
+                parts = rel_path.split('/')
+                target_path = os.path.join(downloads_dir, *parts)
+
+                os.makedirs(os.path.dirname(target_path), exist_ok=True)
+
+                received = 0
+                start_time = time.time()
+                last_update = start_time
+                last_received = 0
+
+                with open(target_path, 'wb') as f:
+                    while received < content_len and self.server.web_receiver.running:
+                        chunk_size = min(config.CHUNK_SIZE_WEB, content_len - received)
+                        chunk = self.rfile.read(chunk_size)
+                        if not chunk:
+                            break
+                        f.write(chunk)
+                        received += len(chunk)
+
+                        now = time.time()
+                        if now - last_update > 0.1:
+                            self.server.web_receiver.notify_progress(rel_path, received, content_len, now - last_update, received - last_received)
+                            last_update = now
+                            last_received = received
+
+                self.server.web_receiver.notify_complete(target_path)
+
+                self.send_response(200)
+                self.send_header('Content-type', 'application/json')
+                self.end_headers()
+                self.wfile.write(b'{"status": "ok"}')
+
+            except Exception as e:
+                self.send_error(500, f"Server Error: {e}")
+        else:
+            self.send_error(404, "Not Found")
+
+
+class WebReceiver:
+    def __init__(self, port=config.DEFAULT_WEB_PORT, on_status_callback=None, on_progress_callback=None, on_complete_callback=None):
+        self.port = port
+        self.on_status = on_status_callback
+        self.on_progress = on_progress_callback
+        self.on_complete = on_complete_callback
+        
+        self.local_ip = get_local_ip()
+        self.url = f"http://{self.local_ip}:{self.port}"
+        
+        self.running = False
+        self.httpd = None
+        
+        self.downloads_dir = config.DOWNLOADS_DIR
+        if not os.path.exists(self.downloads_dir):
+            os.makedirs(self.downloads_dir)
+
+    def start(self):
+        self.running = True
+        while self.running:
+            try:
+                self.httpd = socketserver.TCPServer(('0.0.0.0', self.port), LocalDropHTTPHandler)
+                self.httpd.web_receiver = self
+                break
+            except OSError:
+                self.port += 1
+                self.url = f"http://{self.local_ip}:{self.port}"
+                
+        if self.on_status:
+            self.on_status(f"Web Receiver active at {self.url}")
+            
+        threading.Thread(target=self.httpd.serve_forever, daemon=True).start()
+
+    def stop(self):
+        self.running = False
+        if self.httpd:
+            try:
+                self.httpd.shutdown()
+                self.httpd.server_close()
+            except Exception:
+                pass
+
+    def notify_progress(self, rel_path, received, total, elapsed, bytes_diff):
+        if self.on_progress:
+            percent = (received / total * 100) if total > 0 else 100.0
+            bytes_sec = (bytes_diff / elapsed) if elapsed > 0 else 0
+            speed_str = f"{format_size(bytes_sec)}/s"
+            self.on_progress(percent, speed_str)
+        if self.on_status:
+            self.on_status(f"Receiving {rel_path} ({format_size(received)} / {format_size(total)})")
+
+    def notify_complete(self, filepath):
+        if self.on_status:
+            self.on_status(f"Saved: {os.path.basename(filepath)}")
+        if self.on_complete:
+            self.on_complete(True, filepath)
+
+
+class WebSender:
+    def __init__(self, shared_path, port=config.DEFAULT_WEB_PORT, on_status_callback=None, on_progress_callback=None, on_complete_callback=None):
+        self.shared_path = shared_path
+        self.port = port
+        self.on_status = on_status_callback
+        self.on_progress = on_progress_callback
+        self.on_complete = on_complete_callback
+
+        self.local_ip = get_local_ip()
+        self.url = f"http://{self.local_ip}:{self.port}"
+
+        self.running = False
+        self.httpd = None
+        self.temp_zip_path = None
+
+        self.is_dir = os.path.isdir(shared_path)
+
+        if self.is_dir:
+            base_name = os.path.basename(os.path.normpath(shared_path))
+            temp_dir = tempfile.gettempdir()
+            zip_base = os.path.join(temp_dir, f"localdrop_{base_name}")
+            self.temp_zip_path = shutil.make_archive(zip_base, 'zip', shared_path)
+            self.serve_path = self.temp_zip_path
+            self.target_filename = f"{base_name}.zip"
+            self.file_size = os.path.getsize(self.temp_zip_path)
+        else:
+            self.serve_path = shared_path
+            self.target_filename = os.path.basename(shared_path)
+            self.file_size = os.path.getsize(shared_path)
+
+    def start(self):
+        self.running = True
+        while self.running:
+            try:
+                self.httpd = socketserver.TCPServer(('0.0.0.0', self.port), LocalDropHTTPHandler)
+                self.httpd.web_sender = self
+                break
+            except OSError:
+                self.port += 1
+                self.url = f"http://{self.local_ip}:{self.port}"
+
+        if self.on_status:
+            self.on_status(f"Sharing via Web at {self.url}")
+
+        threading.Thread(target=self.httpd.serve_forever, daemon=True).start()
+
+    def stop(self):
+        self.running = False
+        if self.httpd:
+            try:
+                self.httpd.shutdown()
+                self.httpd.server_close()
+            except Exception:
+                pass
+        if self.temp_zip_path and os.path.exists(self.temp_zip_path):
+            try:
+                os.remove(self.temp_zip_path)
+            except Exception:
+                pass
+
+    def notify_progress(self, sent, total, elapsed, bytes_diff):
+        if self.on_progress:
+            percent = (sent / total * 100) if total > 0 else 100.0
+            bytes_sec = (bytes_diff / elapsed) if elapsed > 0 else 0
+            speed_str = f"{format_size(bytes_sec)}/s"
+            self.on_progress(percent, speed_str)
+        if self.on_status:
+            self.on_status(f"Sending {self.target_filename} ({format_size(sent)} / {format_size(total)})")
+
+    def notify_complete(self, success):
+        if self.on_status:
+            self.on_status("Transfer complete!" if success else "Transfer failed.")
+        if self.on_complete:
+            self.on_complete(success)

@@ -1,6 +1,7 @@
 import socket
 import random
 import os
+import config
 
 def get_local_ip():
     """
@@ -8,8 +9,6 @@ def get_local_ip():
     This doesn't actually send data, it just sets up the socket to read the local IP.
     """
     try:
-        # 10.255.255.255 is a non-routable address, but it forces the socket
-        # to pick the active local network interface.
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         s.connect(('10.255.255.255', 1))
         IP = s.getsockname()[0]
@@ -29,3 +28,21 @@ def format_size(size_in_bytes):
             return f"{size_in_bytes:.2f} {unit}"
         size_in_bytes /= 1024.0
     return f"{size_in_bytes:.2f} PB"
+
+def generate_qr_image(url):
+    """Generates a PIL Image of a QR code matching the retro cream theme."""
+    try:
+        import qrcode
+        qr = qrcode.QRCode(
+            version=1,
+            error_correction=qrcode.constants.ERROR_CORRECT_L,
+            box_size=5,
+            border=2,
+        )
+        qr.add_data(url)
+        qr.make(fit=True)
+        img = qr.make_image(fill_color=config.COLOR_TEXT_PRIMARY, back_color=config.COLOR_CARD)
+        return img
+    except Exception as e:
+        print(f"Failed to generate QR code image: {e}")
+        return None
