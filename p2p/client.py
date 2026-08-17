@@ -3,9 +3,25 @@ import threading
 import struct
 import os
 import time
+import subprocess
+import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import config
 from utils import format_size, get_local_ip
+
+def get_arp_ips():
+    """Parses the system ARP table to find active local network IPs."""
+    active_ips = set()
+    try:
+        output = subprocess.check_output("arp -a", shell=True, stderr=subprocess.DEVNULL).decode('utf-8', errors='ignore')
+        matches = re.findall(r'\b(?:\d{1,3}\.){3}\d{1,3}\b', output)
+        for ip in matches:
+            if not ip.startswith(('255.', '224.', '127.', '0.')):
+                active_ips.add(ip)
+    except Exception:
+        pass
+    return list(active_ips)
 
 class Sender:
     def __init__(self, on_status_callback, on_progress_callback, on_complete_callback):
@@ -32,9 +48,10 @@ class Sender:
         message = f"LOCALDROP_DISCOVER:{passcode}".encode('utf-8')
         local_ip = get_local_ip()
 
+        # Phase 1: UDP Broadcast
         udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         udp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-        udp_socket.settimeout(1.0)
+        udp_socket.settimeout(0.8)
         
         if local_ip != '127.0.0.1':
             try:
@@ -42,7 +59,6 @@ class Sender:
             except Exception:
                 pass
 
-        # Phase 1: Broadcast
         try:
             udp_socket.sendto(message, ('255.255.255.255', self.udp_port))
             if local_ip != '127.0.0.1' and '.' in local_ip:
@@ -58,37 +74,66 @@ class Sender:
                 return addr[0], tcp_port
         except socket.timeout:
             pass
+        finally:
+            try:
+                udp_socket.close()
+            except Exception:
+                pass
 
-        # Phase 2: Automatic Subnet Unicast Scan (Campus / College Wi-Fi Mode)
+        # Phase 2: Parallel ARP Cache + TCP/UDP Subnet Probing (Campus Wi-Fi Mode)
         if local_ip != '127.0.0.1' and '.' in local_ip:
-            self.on_status(f"Campus Wi-Fi detected: Scanning local subnet for passcode {passcode}...")
+            self.on_status(f"Campus Wi-Fi Mode: Probing ARP table & subnet for passcode {passcode}...")
+            
+            candidate_ips = set(get_arp_ips())
             parts = local_ip.split('.')
             subnet_prefix = '.'.join(parts[:3])
-            
             for i in range(1, 255):
-                ip = f"{subnet_prefix}.{i}"
-                if ip != local_ip:
-                    try:
-                        udp_socket.sendto(message, (ip, self.udp_port))
-                    except Exception:
-                        pass
+                candidate_ips.add(f"{subnet_prefix}.{i}")
             
-            start_scan = time.time()
-            udp_socket.settimeout(0.3)
-            while time.time() - start_scan < 2.0 and self.running:
+            candidate_ips.discard(local_ip)
+            found_target = [None, None]
+            
+            def probe_ip(ip):
+                if not self.running or found_target[0]:
+                    return
+                # Send UDP probe
                 try:
-                    data, addr = udp_socket.recvfrom(1024)
-                    response = data.decode('utf-8').strip()
-                    if response.startswith("LOCALDROP_ACCEPT:"):
-                        tcp_port = int(response.split(":")[1])
-                        udp_socket.close()
-                        return addr[0], tcp_port
-                except socket.timeout:
-                    continue
+                    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                    s.settimeout(0.2)
+                    s.sendto(message, (ip, self.udp_port))
+                    data, addr = s.recvfrom(1024)
+                    res = data.decode('utf-8').strip()
+                    s.close()
+                    if res.startswith("LOCALDROP_ACCEPT:"):
+                        port = int(res.split(":")[1])
+                        found_target[0] = addr[0]
+                        found_target[1] = port
+                        return
                 except Exception:
-                    break
+                    pass
 
-        udp_socket.close()
+                # If UDP unicast blocked, probe default TCP P2P port directly
+                try:
+                    ts = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    ts.settimeout(0.2)
+                    if ts.connect_ex((ip, config.DEFAULT_P2P_PORT)) == 0:
+                        ts.close()
+                        found_target[0] = ip
+                        found_target[1] = config.DEFAULT_P2P_PORT
+                        return
+                    ts.close()
+                except Exception:
+                    pass
+
+            with ThreadPoolExecutor(max_workers=60) as executor:
+                futures = [executor.submit(probe_ip, ip) for ip in candidate_ips]
+                for future in as_completed(futures):
+                    if found_target[0]:
+                        break
+
+            if found_target[0]:
+                return found_target[0], found_target[1]
+
         return None, None
 
     def _discover_and_send_thread(self, filepath, passcode, target_ip=None):
