@@ -32,8 +32,12 @@ LocalDrop is a local network peer-to-peer file and folder sharing application bu
 - **To Send to Mobile:** Click **Send File or Folder**, select a file or folder, select **Mobile QR**, scan the QR code with your phone camera, and tap **Download** on your phone.
 
 ### Laptop-to-Laptop Transfer (Passcode Mode)
-- **On Receiver Laptop:** Click **Receive File or Folder** and select **Laptop Passcode** tab to view the 4-digit passcode.
+- **On Receiver Laptop:** Click **Receive File or Folder** and select **Laptop Passcode** tab to view the 4-digit passcode and Receiver IP.
 - **On Sender Laptop:** Click **Send File or Folder**, select file or folder, select **Laptop Passcode** tab, enter the passcode, and click **Send Now**.
+- **College / Campus Wi-Fi Networks (e.g. VIT Bhopal):**
+  - Enterprise Wi-Fi routers block UDP Broadcast packets (`255.255.255.255`).
+  - LocalDrop automatically detects campus Wi-Fi and performs an **Automatic Parallel Subnet Scan** across local IP addresses to pair automatically without typing IP addresses.
+  - If network isolation completely blocks discovery, a helpful popup appears guiding the user to enter the Receiver IP directly or pair via Mobile Hotspot.
 
 ---
 

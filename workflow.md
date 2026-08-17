@@ -33,11 +33,15 @@ LocalDrop supports two distinct modes of operation depending on the target devic
 
 This mode allows two computers running LocalDrop to discover each other and transfer data automatically over local sockets without requiring IP address entry.
 
-### Discovery Stage (UDP Broadcast)
-- Protocol: UDP on port 50025.
-- The receiving laptop generates a random 4-digit passcode and listens on UDP port 50025.
-- The sending laptop broadcasts a discovery packet containing the user-entered passcode (`LOCALDROP_DISCOVER:passcode`) to `255.255.255.255` and the local subnet broadcast address.
-- The receiving laptop validates the passcode and responds with `LOCALDROP_ACCEPT:tcp_port`, providing its IP address and dynamic TCP server port.
+### Discovery Stage (UDP Broadcast & Automatic Subnet Unicast Scan)
+- Protocol: UDP (port 50025) & TCP (default port 50026).
+- The receiving laptop generates a random 4-digit passcode, binds TCP server to port 50026, and listens on UDP port 50025.
+- **Standard Discovery (UDP Broadcast):** The sending laptop sends a broadcast packet containing `LOCALDROP_DISCOVER:passcode` to `255.255.255.255` and local subnet broadcast.
+- **Enterprise / Campus Wi-Fi Mode (Automatic Subnet Unicast Scan):**
+  - Enterprise Wi-Fi networks (such as VIT Bhopal) drop UDP Broadcast packets.
+  - If UDP Broadcast gets no response within 1 second, LocalDrop automatically switches to **Automatic Subnet Unicast Scanning**, sending parallel UDP probes to all active host IPs (`1` through `254`) on the local `/24` subnet.
+  - When the matching receiver responds with `LOCALDROP_ACCEPT:tcp_port`, discovery completes automatically.
+- **Emergency Manual IP Fallback:** If network isolation blocks discovery completely, an optional **Receiver IP** entry field allows direct connection to `Receiver_IP:50026`, bypassing discovery entirely. If discovery fails, a clear diagnostic popup guides the user.
 
 ### Data Transfer Stage (TCP Streaming)
 - Protocol: Direct TCP socket stream.
