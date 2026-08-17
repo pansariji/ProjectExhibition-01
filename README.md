@@ -1,15 +1,15 @@
 # LocalDrop
 
-LocalDrop is a local network peer-to-peer file and folder sharing tool built with Python and **CustomTkinter**. It allows laptops and mobile devices on the same Wi-Fi network to transfer files and complete folder structures securely without needing external cloud services.
+LocalDrop is a local network peer-to-peer file and folder sharing application built with Python and CustomTkinter. It allows laptops and mobile devices on the same Wi-Fi network to transfer files and complete folder structures securely without needing external cloud services.
 
 ## Features
-- **Modern Dark UI**: Powered by `CustomTkinter` with rounded cards, smooth progress tracking, and clean dark mode theme.
+- **Warm Cream Retro-Tech Editorial UI**: Powered by CustomTkinter with rounded paper cards, Space Grotesk and Consolas typography, smooth progress tracking, and a warm cream aesthetic.
 - **Bidirectional Zero-Install Web Sharing (QR Code)**:
-  - **Upload to Laptop**: Scan the QR code displayed in the Laptop's Receive mode to upload files or full folder trees from mobile browsers (iPhone or Android).
-  - **Download from Laptop**: Scan the QR code displayed in the Laptop's Send mode to download selected files or auto-zipped folder archives directly to your phone.
+  - **Upload to Laptop**: Scan the QR code displayed in the Laptop Receive mode to upload files or full folder trees from mobile browsers (iPhone or Android).
+  - **Download from Laptop**: Scan the QR code displayed in the Laptop Send mode to download selected files or auto-zipped folder archives directly to your phone.
 - **Passcode-based Laptop-to-Laptop Pairing**: Simplifies app-to-app connection using a 4-digit passcode instead of typing IP addresses.
 - **Local Network (LAN)**: Transfers files and folders entirely over the local network for maximum speed and privacy.
-- **File & Folder Support**: Transfer individual files or complete directory structures with nested subfolders while preserving folder hierarchy (`webkitdirectory` & `.zip` stream support).
+- **File and Folder Support**: Transfer individual files or complete directory structures with nested subfolders while preserving folder hierarchy (`webkitdirectory` and `.zip` stream support).
 - **Large File Support**: Files are streamed in chunks, supporting arbitrarily large files and folders without loading them entirely into memory.
 
 ## Prerequisites
@@ -27,29 +27,39 @@ LocalDrop is a local network peer-to-peer file and folder sharing tool built wit
    python main.py
    ```
 
-### 📱 Sharing with Mobile via QR Code (Zero-Install)
-- **To Receive from Mobile:** Click **Receive File or Folder** -> select **📱 Mobile (QR Code)** -> Scan the QR code with phone camera -> Upload files or folders from your phone!
-- **To Send to Mobile:** Click **Send File or Folder** -> select a file or folder -> select **📱 Mobile (QR Code)** -> Scan the QR code with phone camera -> Tap **Download** on your phone!
+### Mobile Sharing via QR Code (Zero-Install)
+- **To Receive from Mobile:** Click **Receive File or Folder**, select **Mobile QR**, scan the QR code with your phone camera, and upload files or folders from your phone browser.
+- **To Send to Mobile:** Click **Send File or Folder**, select a file or folder, select **Mobile QR**, scan the QR code with your phone camera, and tap **Download** on your phone.
 
-### 💻 Laptop-to-Laptop Transfer (Passcode Mode)
-- **On Receiver Laptop:** Click **Receive File or Folder** -> select **💻 Laptop (Passcode)** tab to view 4-digit passcode.
-- **On Sender Laptop:** Click **Send File or Folder** -> select file/folder -> select **💻 Laptop (Passcode)** tab -> enter passcode -> click **Send Now**.
+### Laptop-to-Laptop Transfer (Passcode Mode)
+- **On Receiver Laptop:** Click **Receive File or Folder** and select **Laptop Passcode** tab to view the 4-digit passcode.
+- **On Sender Laptop:** Click **Send File or Folder**, select file or folder, select **Laptop Passcode** tab, enter the passcode, and click **Send Now**.
 
 ---
 
-## Technical Architecture
+## Codebase Architecture
 
-LocalDrop combines three networking modes to achieve seamless cross-device sharing without cloud servers or manual IP setup:
+LocalDrop is structured as a clean, modular Python application:
 
-### 1. Modern Desktop GUI (`customtkinter`)
-- CustomTkinter dark mode theme (`ctk.set_appearance_mode("Dark")`).
-- Tabbed navigation cards (`CTkTabview`), smooth progress bars (`CTkProgressBar`), and dynamic PIL image rendering (`CTkImage`).
-
-### 2. Zero-Install Mobile Web Server (HTTP + QR Code)
-- **QR Code Generation**: Uses `qrcode` and `Pillow` to encode `http://<laptop_local_ip>:8080` into a QR image.
-- **Web Receiver (`POST /upload`)**: Python's `http.server` hosts an embedded mobile HTML5 Web App. Uses `webkitdirectory` to capture relative directory paths (`X-Relative-Path`) and reconstructs nested folder trees on disk inside `Downloads/`.
-- **Web Sender (`GET /download`)**: Displays a mobile download interface. For single files, streams raw file bytes. For folders, dynamically packages the directory into a `.zip` archive on-the-fly for single-tap mobile downloads.
-
-### 3. UDP Discovery & TCP Streaming (Laptop-to-Laptop)
-- **UDP Broadcast**: Passcode discovery on port 50025.
-- **TCP Data Streaming**: Binary header serialization (`struct`), chunked byte streaming, and relative folder tree reconstruction.
+```
+PE1/
+├── .gitignore            # Git exclusion rules (pycache, virtualenvs, Downloads, build outputs)
+├── config.py             # Central configuration (Colors, Theme Tokens, Ports, Chunk Sizes, Paths)
+├── utils.py              # Utility functions (IP discovery, Passcode, Byte formatting, QR generation)
+├── p2p/                  # Laptop-to-Laptop P2P Transfer Engine
+│   ├── __init__.py
+│   ├── client.py         # P2P Sender (UDP discovery + TCP file/folder streaming)
+│   └── server.py         # P2P Receiver (UDP discovery responder + TCP reception)
+├── web/                  # Mobile Web Server Module
+│   ├── __init__.py
+│   ├── server.py         # WebReceiver, WebSender, HTTP Request Handlers
+│   └── templates.py      # Mobile HTML/CSS/JS interface templates
+├── ui/                   # CustomTkinter UI Views and Components
+│   ├── __init__.py
+│   ├── home_frame.py     # Home Screen View (Hero card, routing badge, feature tags, action buttons)
+│   ├── receive_frame.py  # Receive Screen View (Mobile QR tab and Laptop Passcode tab)
+│   └── send_frame.py     # Send Screen View (File/Folder picker, QR tab and Passcode tab)
+├── main.py               # Application entry point (~55 lines)
+├── README.md             # Project overview and setup instructions
+└── workflow.md           # In-depth technical architecture and networking protocol documentation
+```

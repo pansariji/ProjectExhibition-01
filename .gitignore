@@ -1,0 +1,32 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# PyInstaller / Executable build artifacts
+build/
+dist/
+*.manifest
+*.spec
+
+# Downloads directory (received files/folders during LocalDrop transfers)
+Downloads/
+
+# Environments / Virtualenvs
+.venv/
+venv/
+ENV/
+env/
+
+# IDE / Editor settings
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Temporary zip files generated during web directory transfers
+*.zip

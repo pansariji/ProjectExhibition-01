@@ -4,14 +4,15 @@ import struct
 import os
 import time
 
-from utils import format_size
+import config
+from utils import format_size, get_local_ip
 
 class Sender:
     def __init__(self, on_status_callback, on_progress_callback, on_complete_callback):
         self.on_status = on_status_callback
         self.on_progress = on_progress_callback
         self.on_complete = on_complete_callback
-        self.udp_port = 50025
+        self.udp_port = config.DEFAULT_UDP_PORT
         self.running = False
         
     def cancel(self):
@@ -34,10 +35,8 @@ class Sender:
         try:
             udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             udp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-            udp_socket.settimeout(5.0) # 5 second timeout for discovery
+            udp_socket.settimeout(5.0)  # 5 second timeout for discovery
             
-            # Get local IP and bind to it to force routing broadcast through the active interface on macOS
-            from utils import get_local_ip
             local_ip = get_local_ip()
             if local_ip != '127.0.0.1':
                 try:
@@ -45,12 +44,11 @@ class Sender:
                 except Exception as bind_err:
                     print(f"Warning: Failed to bind UDP socket to local IP {local_ip}: {bind_err}")
             
-            # Broadcast the discovery message
+            # Broadcast discovery message
             message = f"LOCALDROP_DISCOVER:{passcode}"
-            # Broadcast to 255.255.255.255 (limited broadcast)
             udp_socket.sendto(message.encode('utf-8'), ('255.255.255.255', self.udp_port))
             
-            # Also broadcast to the subnet-directed broadcast address (e.g. 192.168.1.255) as a fallback
+            # Subnet-directed broadcast fallback
             if local_ip != '127.0.0.1' and '.' in local_ip:
                 try:
                     parts = local_ip.split('.')
@@ -59,7 +57,7 @@ class Sender:
                 except Exception:
                     pass
             
-            # Wait for a response
+            # Wait for response
             data, addr = udp_socket.recvfrom(1024)
             response = data.decode('utf-8').strip()
             
@@ -86,7 +84,7 @@ class Sender:
         if not self.running:
             return
 
-        # 2. TCP File / Folder Transfer
+        # 2. TCP Transfer
         try:
             is_directory = os.path.isdir(filepath)
             tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -94,9 +92,7 @@ class Sender:
 
             if is_directory:
                 base_dir = os.path.abspath(filepath)
-                foldername = os.path.basename(base_dir)
-                if not foldername:
-                    foldername = "Folder"
+                foldername = os.path.basename(base_dir) or "Folder"
 
                 entries = []
                 total_bytes = 0
@@ -121,15 +117,13 @@ class Sender:
                         total_bytes += fsize
                         entries.append(('F', rel_file, file_abs, fsize))
 
-                # Send flag 'D' for directory
+                # Directory Flag Header
                 tcp_socket.sendall(b'D')
 
-                # Send foldername length & foldername
                 encoded_foldername = foldername.encode('utf-8')
                 tcp_socket.sendall(struct.pack('>I', len(encoded_foldername)))
                 tcp_socket.sendall(encoded_foldername)
 
-                # Send total bytes & entry count
                 tcp_socket.sendall(struct.pack('>Q', total_bytes))
                 tcp_socket.sendall(struct.pack('>I', len(entries)))
 
@@ -144,10 +138,8 @@ class Sender:
                     if not self.running:
                         break
 
-                    # Send entry type 'F' or 'D'
                     tcp_socket.sendall(entry_type.encode('utf-8'))
 
-                    # Send rel_path length & rel_path
                     encoded_rel_path = rel_path.encode('utf-8')
                     tcp_socket.sendall(struct.pack('>I', len(encoded_rel_path)))
                     tcp_socket.sendall(encoded_rel_path)
@@ -158,7 +150,7 @@ class Sender:
                         with open(abs_path, 'rb') as f:
                             sent_for_file = 0
                             while sent_for_file < fsize and self.running:
-                                chunk = f.read(min(8192, fsize - sent_for_file))
+                                chunk = f.read(min(config.CHUNK_SIZE_P2P, fsize - sent_for_file))
                                 if not chunk:
                                     break
                                 tcp_socket.sendall(chunk)
@@ -185,19 +177,16 @@ class Sender:
                     self.on_complete(False)
 
             else:
-                # Single File transfer
+                # Single File Transfer
                 filename = os.path.basename(filepath)
                 file_size = os.path.getsize(filepath)
 
-                # Send flag 'F' for file
                 tcp_socket.sendall(b'F')
 
-                # Send filename length & filename
                 encoded_name = filename.encode('utf-8')
                 tcp_socket.sendall(struct.pack('>I', len(encoded_name)))
                 tcp_socket.sendall(encoded_name)
 
-                # Send file size
                 tcp_socket.sendall(struct.pack('>Q', file_size))
 
                 self.on_status(f"Sending {filename} ({format_size(file_size)})...")
@@ -209,7 +198,7 @@ class Sender:
 
                 with open(filepath, 'rb') as f:
                     while sent_bytes < file_size and self.running:
-                        chunk = f.read(8192)
+                        chunk = f.read(config.CHUNK_SIZE_P2P)
                         if not chunk:
                             break
                         tcp_socket.sendall(chunk)
@@ -239,6 +228,5 @@ class Sender:
         finally:
             try:
                 tcp_socket.close()
-            except:
+            except Exception:
                 pass
-

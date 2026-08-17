@@ -1,97 +1,79 @@
-Here is a complete, easy-to-understand breakdown of how **LocalDrop** works under the hood, including the exact technologies, networking protocols, and connection workflows it uses.
+# LocalDrop System Architecture and Workflow
+
+LocalDrop is a local network peer-to-peer file and folder sharing application built with Python and CustomTkinter. It enables direct, secure transfers between laptops and mobile devices on the same Wi-Fi network without requiring cloud servers, internet access, or third-party user accounts.
 
 ---
 
-# High-Level Architecture Overview
+# Modular Codebase Structure
 
-LocalDrop operates entirely within your **Local Area Network (LAN)** (e.g., your home or office Wi-Fi). No files or data ever leave your Wi-Fi router or go to any cloud server.
+The application is organized into clean, dedicated Python packages and modules:
 
-LocalDrop uses **two distinct modes of communication**:
-
-1. **Laptop-to-Laptop Mode**: Uses **UDP Broadcast** for automatic device discovery + **TCP Sockets** for direct, high-speed file streaming.
-2. **Mobile-to-Laptop / Laptop-to-Mobile Mode**: Uses **HTTP Server** + **QR Codes**, allowing any smartphone (iPhone/Android) to connect via its native Web Browser without installing any app.
-
----
-
-#  Mode 1: Laptop-to-Laptop (P2P Passcode Transfer)
-
-How do two laptops find each other on Wi-Fi without typing IP addresses?
-
-```
-[ Sender Laptop ]                                         [ Receiver Laptop ]
-       │                                                         │
-       │─── 1. UDP Broadcast ("LOCALDROP_DISCOVER:1234") ───────►│ (Listens on UDP 50025)
-       │                                                         │
-       │◄── 2. UDP Response  ("LOCALDROP_ACCEPT:56789") ─────────│ (Replies with IP & TCP Port)
-       │                                                         │
-       │═══ 3. Direct TCP Connection (Port 56789) ──────────────►│ (Streams file/folder bytes)
-```
-
-### 1. Discovery Phase (UDP Protocol)
-* **Protocol**: **UDP (User Datagram Protocol)** on port `50025`.
-* **How it works**:
-  - The Receiver Laptop generates a random 4-digit passcode (e.g., `1234`) and listens on UDP port `50025`.
-  - The Sender Laptop types `1234` and sends a **UDP Broadcast** packet to `255.255.255.255` (a special address that shouts to *all* devices on the Wi-Fi): `"LOCALDROP_DISCOVER:1234"`.
-  - Every device on the Wi-Fi receives the UDP packet, but only the Receiver Laptop matching passcode `1234` answers back: `"LOCALDROP_ACCEPT:<dynamic_tcp_port>"`.
-  - Now, the Sender Laptop instantly knows the Receiver's IP address and TCP port!
-
-### 2. Data Transfer Phase (TCP Protocol)
-* **Protocol**: **TCP (Transmission Control Protocol)**.
-* **Why TCP?**: Unlike UDP, TCP guarantees 100% reliable, error-free delivery of every single byte in exact order.
-* **Header Serialization**:
-  - The Sender packs metadata (File vs. Folder flag `'F'` or `'D'`, file names, subfolder relative paths, and sizes) into binary headers using Python's `struct` module (`struct.pack('>I', name_len)` and `struct.pack('>Q', total_bytes)`).
-* **Chunked Streaming**:
-  - Files are read in **8 KB / 16 KB chunks** (`socket.sendall`) and written directly to disk on the receiver end inside `Downloads/`. This ensures even a 10 GB file uses almost no RAM!
+- **.gitignore**: Excludes Python bytecode caches (`__pycache__`, `*.pyc`), virtual environments (`.venv/`), PyInstaller build outputs (`build/`, `dist/`), OS files (`.DS_Store`, `Thumbs.db`), received files (`Downloads/`), and temporary zip archives (`*.zip`).
+- **config.py**: Holds all global configuration tokens, network ports (UDP 50025, Web 8080), theme colors (Warm Cream Retro-Tech palette), chunk sizes, and default paths.
+- **utils.py**: Contains network IP discovery, 4-digit passcode generation, human-readable file size formatting, and QR code image generation.
+- **p2p/ Package**: 
+  - `p2p/client.py`: Handles laptop discovery via UDP broadcast and direct TCP socket file/folder streaming.
+  - `p2p/server.py`: Manages UDP broadcast listening, passcode validation, and incoming TCP data reception.
+- **web/ Package**: 
+  - `web/templates.py`: Contains HTML, CSS, and JavaScript templates served to mobile devices.
+  - `web/server.py`: Implements HTTP web server handlers, WebReceiver for mobile uploads, and WebSender for mobile downloads.
+- **ui/ Package**:
+  - `ui/home_frame.py`: Renders the main dashboard, hero card, feature badges, and primary action buttons.
+  - `ui/receive_frame.py`: Manages the Receive view with Mobile QR and Laptop Passcode tabs.
+  - `ui/send_frame.py`: Manages the Send view with file/folder selection, Mobile QR, and Laptop Passcode tabs.
+- **main.py**: The main entry point that initializes CustomTkinter and controls view transitions.
 
 ---
 
-#  Mode 2: Mobile-to-Laptop & Laptop-to-Mobile (QR Code Web Server)
+# Networking Protocols and Transfer Modes
 
-How does a phone transfer files without installing an app?
+LocalDrop supports two distinct modes of operation depending on the target device type.
 
-```
-[ Laptop ]                                                 [ Mobile Phone ]
-    │                                                            │
-    │─── 1. Displays QR Code (http://192.168.1.5:8080) ─────────►│ (Scans with Camera)
-    │                                                            │
-    │◄── 2. HTTP GET /  (Requests Web Page) ────────────────────│ (Browser opens web UI)
-    │                                                            │
-    │◄── 3. HTTP POST /upload  OR  HTTP GET /download ──────────►│ (Uploads/Downloads Data)
-```
+## Mode 1: Laptop to Laptop (P2P Passcode Pairing)
 
-### 1. QR Code & Web Server Initialization
-* **Protocol**: **HTTP over TCP** (default port `8080`).
-* **Technologies**: Python's `http.server`, `socketserver`, `qrcode`, and `Pillow`.
-* **How it works**:
-  - LocalDrop finds the laptop's local Wi-Fi IP address (e.g., `192.168.1.5`).
-  - It generates a QR code image encoding `http://192.168.1.5:8080`.
-  - Scanning the QR code with an iPhone or Android camera opens the laptop's built-in web server in Safari or Chrome.
+This mode allows two computers running LocalDrop to discover each other and transfer data automatically over local sockets without requiring IP address entry.
 
-### 2. Mobile-to-Laptop Upload (Receiving Mode)
-* **Web UI**: Embedded HTML5 + CSS + JavaScript web application served directly from Python string templates.
-* **Folder Hierarchy (`webkitdirectory`)**:
-  - HTML5 `<input type="file" webkitdirectory>` allows mobile users to select entire folder trees.
-  - The mobile browser attaches a custom HTTP Header `X-Relative-Path: MyFolder/Photos/beach.jpg` to each upload request.
-* **HTTP POST**: The phone sends HTTP `POST /upload` requests. The Python server parses `X-Relative-Path`, automatically recreates nested folders on disk, and streams the file contents into `Downloads/`.
+### Discovery Stage (UDP Broadcast)
+- Protocol: UDP on port 50025.
+- The receiving laptop generates a random 4-digit passcode and listens on UDP port 50025.
+- The sending laptop broadcasts a discovery packet containing the user-entered passcode (`LOCALDROP_DISCOVER:passcode`) to `255.255.255.255` and the local subnet broadcast address.
+- The receiving laptop validates the passcode and responds with `LOCALDROP_ACCEPT:tcp_port`, providing its IP address and dynamic TCP server port.
 
-### 3. Laptop-to-Mobile Download (Sending Mode)
-* **Single File**: Mobile opens `GET /download` $\rightarrow$ Laptop responds with `Content-Type: application/octet-stream` and streams file bytes.
-* **Folder Packaging (`.zip`)**:
-  - Mobile browsers cannot download raw folders natively.
-  - When a laptop user shares a folder, Python's `shutil.make_archive` zips the folder on-the-fly in a background temp directory.
-  - Tapping **Download** on the phone downloads `MyFolder.zip` cleanly!
+### Data Transfer Stage (TCP Streaming)
+- Protocol: Direct TCP socket stream.
+- Binary Headers: Python's `struct` module serializes metadata headers including item type flags ('F' for single file, 'D' for directory), folder names, entry counts, relative paths, and sizes.
+- Chunked Data Stream: File contents are read and transmitted in 8 KB chunks. This keeps memory consumption minimal regardless of file or folder size.
+- Directory Reconstruction: For folder transfers, LocalDrop recursively walks the directory structure, sends empty directory markers and relative file paths, and recreates the full folder tree inside the recipient's Downloads folder.
 
 ---
 
-#  Summary of Technologies & Protocols Used
+## Mode 2: Mobile Browser Web Sharing (Zero-Install QR Code)
 
-| Feature / Task | Technology / Library | Protocol / Format |
-| :--- | :--- | :--- |
-| **GUI Interface** | Python `tkinter` (`ttk`, `Notebook`, `PIL/ImageTk`) | Desktop Native UI |
-| **Laptop Discovery** | Python `socket` | **UDP Broadcast** (Port `50025`) |
-| **Laptop P2P Transfer** | Python `socket` + `struct` | **TCP Stream** (Binary Metadata Headers) |
-| **Mobile Web Server** | Python `http.server` & `socketserver` | **HTTP / 1.1** (Port `8080`) |
-| **QR Code Encoding** | `qrcode` & `Pillow` (PIL) | QR Matrix Code (URL string) |
-| **Mobile UI & Drag-Drop** | HTML5, CSS3 Glassmorphism, JavaScript XHR | Responsive Web App |
-| **Folder Reconstruction** | HTML5 `webkitdirectory` & HTTP Headers | `X-Relative-Path` Header |
-| **On-the-fly Zip Packaging**| Python `shutil` & `tempfile` | `.zip` Archive Stream |
+This mode allows smartphones (iOS and Android) to exchange files with a laptop through a web browser, requiring no app installation on the phone.
+
+### Connection Stage (QR Code)
+- Protocol: HTTP over TCP (default port 8080).
+- LocalDrop determines the laptop's local IP address and launches an HTTP server.
+- It generates a QR code containing the web server URL (for example, `http://192.168.1.5:8080`).
+- Scanning the QR code opens the mobile interface directly in Safari or Chrome.
+
+### Mobile to Laptop Uploads (Web Receiver)
+- The laptop serves an embedded HTML5 web application with drag-and-drop file selection and folder picker support (`webkitdirectory`).
+- Mobile browsers send files via HTTP POST requests to `/upload` with a custom `X-Relative-Path` header specifying the file's relative path within a directory structure.
+- The laptop HTTP handler parses the header, creates necessary parent directories in the Downloads folder, and streams incoming payload bytes directly to disk.
+
+### Laptop to Mobile Downloads (Web Sender)
+- Single Files: Tapping download sends an HTTP GET request to `/download`. The laptop serves the file with an `application/octet-stream` header.
+- Folder Downloads: Since mobile browsers cannot directly download uncompressed folder trees, LocalDrop dynamically creates a `.zip` archive in a temporary directory using Python's `shutil` module, serving the zipped directory for a single-tap download.
+
+---
+
+# Technology Stack Summary
+
+- **User Interface**: Python CustomTkinter (Light mode, Warm Cream Editorial Retro-Tech theme).
+- **Desktop Discovery**: Python socket module using UDP Broadcast on port 50025.
+- **Desktop Data Transfer**: Python socket and struct modules using binary TCP streams.
+- **Mobile Web Server**: Python http.server and socketserver hosting HTTP endpoints on port 8080.
+- **QR Code Rendering**: qrcode and Pillow (PIL) libraries.
+- **Mobile Web Interface**: HTML5, CSS3, JavaScript XHR with upload progress tracking.
+- **Archive Generation**: Python shutil and tempfile modules for ZIP archive creation.
