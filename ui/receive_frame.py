@@ -23,14 +23,14 @@ class ReceiveFrame(ctk.CTkFrame):
         btn_back = ctk.CTkButton(
             top_bar, 
             text="← Back", 
-            width=80,
-            height=32,
-            corner_radius=16,
-            fg_color=config.COLOR_BTN_SEC_BG,
+            width=84,
+            height=34,
+            corner_radius=17,
+            fg_color="#eae4d7",
             text_color=config.COLOR_TEXT_PRIMARY,
-            hover_color=config.COLOR_BTN_SEC_HOVER,
+            hover_color="#d8d0c0",
             border_width=1,
-            border_color=config.COLOR_BORDER,
+            border_color="#c8c0b0",
             font=ctk.CTkFont(size=12, weight="bold"),
             command=self.controller.show_home_screen
         )
@@ -51,9 +51,7 @@ class ReceiveFrame(ctk.CTkFrame):
             fg_color=config.COLOR_CARD,
             segmented_button_fg_color="#eae4d7",
             segmented_button_selected_color="#1c1917",
-            segmented_button_selected_text_color="#f3efe6",
-            segmented_button_unselected_color="#eae4d7",
-            segmented_button_unselected_text_color="#1c1917"
+            segmented_button_unselected_color="#e2dcd0"
         )
         self.tabview.pack(fill="both", expand=True, padx=20, pady=10)
         
@@ -159,7 +157,7 @@ class ReceiveFrame(ctk.CTkFrame):
             font=ctk.CTkFont(size=13),
             text_color=config.COLOR_TEXT_MUTED
         )
-        lbl_inst.pack(pady=(35, 10))
+        lbl_inst.pack(pady=(20, 5))
         
         pass_card = ctk.CTkFrame(
             self.tab_pass, 
@@ -168,7 +166,7 @@ class ReceiveFrame(ctk.CTkFrame):
             border_width=1,
             border_color="#d8d0c0"
         )
-        pass_card.pack(padx=40, pady=10)
+        pass_card.pack(padx=40, pady=5)
         
         lbl_pass = ctk.CTkLabel(
             pass_card, 
@@ -176,9 +174,39 @@ class ReceiveFrame(ctk.CTkFrame):
             font=ctk.CTkFont(family="Consolas", size=44, weight="bold"),
             text_color=config.COLOR_TEXT_PRIMARY
         )
-        lbl_pass.pack(padx=40, pady=18)
+        lbl_pass.pack(padx=40, pady=12)
+
+        self.ip_var = ctk.StringVar(value="IP: Fetching local IP...")
+        lbl_ip = ctk.CTkLabel(
+            self.tab_pass,
+            textvariable=self.ip_var,
+            font=ctk.CTkFont(family="Consolas", size=12, weight="bold"),
+            text_color=config.COLOR_GREEN
+        )
+        lbl_ip.pack(pady=4)
+
+    def _update_tab_styles(self):
+        try:
+            sb = self.tabview._segmented_button
+            cur = self.tabview.get()
+            for name, btn in sb._buttons_dict.items():
+                if name == cur:
+                    btn.configure(
+                        fg_color=config.COLOR_TEXT_PRIMARY,
+                        text_color="#f3efe6",
+                        hover_color="#2b2623"
+                    )
+                else:
+                    btn.configure(
+                        fg_color="#e2dcd0",
+                        text_color=config.COLOR_TEXT_PRIMARY,
+                        hover_color="#d5cebf"
+                    )
+        except Exception:
+            pass
 
     def _on_tab_changed(self):
+        self._update_tab_styles()
         selected_tab = self.tabview.get()
         if "Mobile" in selected_tab:
             self._start_web_receiver()
@@ -220,6 +248,8 @@ class ReceiveFrame(ctk.CTkFrame):
                 on_complete_callback=self.on_complete
             )
             self.controller.receiver.start()
+            
+        self.ip_var.set(f"Receiver IP: {self.controller.receiver.local_ip}")
 
     def update_status(self, msg):
         self.controller.root.after(0, lambda: self.status_var.set(msg))

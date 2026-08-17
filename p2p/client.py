@@ -19,67 +19,88 @@ class Sender:
         """Cancels the transfer."""
         self.running = False
 
-    def discover_and_send(self, filepath, passcode):
+    def discover_and_send(self, filepath, passcode, target_ip=None):
         """Starts a background thread to discover the receiver and send the file."""
         self.running = True
-        threading.Thread(target=self._discover_and_send_thread, args=(filepath, passcode), daemon=True).start()
+        threading.Thread(target=self._discover_and_send_thread, args=(filepath, passcode, target_ip), daemon=True).start()
 
-    def _discover_and_send_thread(self, filepath, passcode):
-        """Threaded function to perform discovery and transfer."""
-        receiver_ip = None
-        receiver_tcp_port = None
+    def _discover_receiver(self, passcode, target_ip=None):
+        if target_ip:
+            return target_ip, config.DEFAULT_P2P_PORT
+
+        self.on_status(f"Searching for passcode {passcode} on Wi-Fi...")
+        message = f"LOCALDROP_DISCOVER:{passcode}".encode('utf-8')
+        local_ip = get_local_ip()
+
+        udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        udp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        udp_socket.settimeout(1.0)
         
-        # 1. UDP Discovery
-        self.on_status(f"Searching for receiver with passcode {passcode}...")
-        
+        if local_ip != '127.0.0.1':
+            try:
+                udp_socket.bind((local_ip, 0))
+            except Exception:
+                pass
+
+        # Phase 1: Broadcast
         try:
-            udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            udp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-            udp_socket.settimeout(5.0)  # 5 second timeout for discovery
-            
-            local_ip = get_local_ip()
-            if local_ip != '127.0.0.1':
-                try:
-                    udp_socket.bind((local_ip, 0))
-                except Exception as bind_err:
-                    print(f"Warning: Failed to bind UDP socket to local IP {local_ip}: {bind_err}")
-            
-            # Broadcast discovery message
-            message = f"LOCALDROP_DISCOVER:{passcode}"
-            udp_socket.sendto(message.encode('utf-8'), ('255.255.255.255', self.udp_port))
-            
-            # Subnet-directed broadcast fallback
+            udp_socket.sendto(message, ('255.255.255.255', self.udp_port))
             if local_ip != '127.0.0.1' and '.' in local_ip:
-                try:
-                    parts = local_ip.split('.')
-                    subnet_broadcast = '.'.join(parts[:-1]) + '.255'
-                    udp_socket.sendto(message.encode('utf-8'), (subnet_broadcast, self.udp_port))
-                except Exception:
-                    pass
+                parts = local_ip.split('.')
+                subnet_broadcast = '.'.join(parts[:-1]) + '.255'
+                udp_socket.sendto(message, (subnet_broadcast, self.udp_port))
             
-            # Wait for response
             data, addr = udp_socket.recvfrom(1024)
             response = data.decode('utf-8').strip()
-            
             if response.startswith("LOCALDROP_ACCEPT:"):
-                receiver_ip = addr[0]
-                receiver_tcp_port = int(response.split(":")[1])
-                self.on_status(f"Receiver found at {receiver_ip}. Connecting...")
-            else:
-                self.on_status("Received malformed response from receiver.")
-                self.on_complete(False)
-                return
-                
+                tcp_port = int(response.split(":")[1])
+                udp_socket.close()
+                return addr[0], tcp_port
         except socket.timeout:
-            self.on_status("Error: No device found with that passcode (timeout).")
-            self.on_complete(False)
+            pass
+
+        # Phase 2: Automatic Subnet Unicast Scan (Campus / College Wi-Fi Mode)
+        if local_ip != '127.0.0.1' and '.' in local_ip:
+            self.on_status(f"Campus Wi-Fi detected: Scanning local subnet for passcode {passcode}...")
+            parts = local_ip.split('.')
+            subnet_prefix = '.'.join(parts[:3])
+            
+            for i in range(1, 255):
+                ip = f"{subnet_prefix}.{i}"
+                if ip != local_ip:
+                    try:
+                        udp_socket.sendto(message, (ip, self.udp_port))
+                    except Exception:
+                        pass
+            
+            start_scan = time.time()
+            udp_socket.settimeout(0.3)
+            while time.time() - start_scan < 2.0 and self.running:
+                try:
+                    data, addr = udp_socket.recvfrom(1024)
+                    response = data.decode('utf-8').strip()
+                    if response.startswith("LOCALDROP_ACCEPT:"):
+                        tcp_port = int(response.split(":")[1])
+                        udp_socket.close()
+                        return addr[0], tcp_port
+                except socket.timeout:
+                    continue
+                except Exception:
+                    break
+
+        udp_socket.close()
+        return None, None
+
+    def _discover_and_send_thread(self, filepath, passcode, target_ip=None):
+        """Threaded function to perform discovery and transfer."""
+        receiver_ip, receiver_tcp_port = self._discover_receiver(passcode, target_ip)
+        
+        if not receiver_ip or not receiver_tcp_port:
+            self.on_status("College Wi-Fi Notice: Discovery failed (UDP Broadcast blocked).")
+            self.on_complete(False, "DISCOVERY_FAILED")
             return
-        except Exception as e:
-            self.on_status(f"Discovery Error: {e}")
-            self.on_complete(False)
-            return
-        finally:
-            udp_socket.close()
+
+        self.on_status(f"Receiver found at {receiver_ip}. Connecting...")
 
         if not self.running:
             return

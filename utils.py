@@ -42,7 +42,7 @@ def generate_qr_image(url):
         qr.add_data(url)
         qr.make(fit=True)
         img = qr.make_image(fill_color=config.COLOR_TEXT_PRIMARY, back_color=config.COLOR_CARD)
-        return img
+        return img.convert('RGB')
     except Exception as e:
         print(f"Failed to generate QR code image: {e}")
         return None

@@ -31,8 +31,14 @@ class Receiver:
         self.running = True
         
         self.tcp_server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.tcp_server_socket.bind(('0.0.0.0', 0))  # Bind to any free port
-        self.tcp_server_socket.listen(1)
+        port = config.DEFAULT_P2P_PORT
+        while self.running:
+            try:
+                self.tcp_server_socket.bind(('0.0.0.0', port))
+                break
+            except OSError:
+                port += 1
+        self.tcp_server_socket.listen(5)
         self.tcp_port = self.tcp_server_socket.getsockname()[1]
         
         self.on_status(f"Listening on TCP port {self.tcp_port}")

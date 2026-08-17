@@ -60,11 +60,9 @@ class HomeFrame(ctk.CTkFrame):
             font=ctk.CTkFont(family="Consolas", size=10, weight="bold"),
             text_color=config.COLOR_TEXT_MUTED,
             fg_color=config.COLOR_CARD_ALT,
-            corner_radius=8,
-            padx=10,
-            pady=4
+            corner_radius=8
         )
-        tag1.pack(side="left", padx=4)
+        tag1.pack(side="left", padx=4, pady=2)
         
         tag2 = ctk.CTkLabel(
             tags_container, 
@@ -72,11 +70,9 @@ class HomeFrame(ctk.CTkFrame):
             font=ctk.CTkFont(family="Consolas", size=10, weight="bold"),
             text_color=config.COLOR_TEXT_MUTED,
             fg_color=config.COLOR_CARD_ALT,
-            corner_radius=8,
-            padx=10,
-            pady=4
+            corner_radius=8
         )
-        tag2.pack(side="left", padx=4)
+        tag2.pack(side="left", padx=4, pady=2)
         
         tag3 = ctk.CTkLabel(
             tags_container, 
@@ -84,11 +80,9 @@ class HomeFrame(ctk.CTkFrame):
             font=ctk.CTkFont(family="Consolas", size=10, weight="bold"),
             text_color=config.COLOR_TEXT_MUTED,
             fg_color=config.COLOR_CARD_ALT,
-            corner_radius=8,
-            padx=10,
-            pady=4
+            corner_radius=8
         )
-        tag3.pack(side="left", padx=4)
+        tag3.pack(side="left", padx=4, pady=2)
 
         # Primary Action Buttons
         btn_send = ctk.CTkButton(

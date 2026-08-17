@@ -21,14 +21,14 @@ class SendFrame(ctk.CTkFrame):
         btn_back = ctk.CTkButton(
             top_bar, 
             text="← Back", 
-            width=80,
-            height=32,
-            corner_radius=16,
-            fg_color=config.COLOR_BTN_SEC_BG,
+            width=84,
+            height=34,
+            corner_radius=17,
+            fg_color="#eae4d7",
             text_color=config.COLOR_TEXT_PRIMARY,
-            hover_color=config.COLOR_BTN_SEC_HOVER,
+            hover_color="#d8d0c0",
             border_width=1,
-            border_color=config.COLOR_BORDER,
+            border_color="#c8c0b0",
             font=ctk.CTkFont(size=12, weight="bold"),
             command=self.controller.show_home_screen
         )
@@ -101,9 +101,7 @@ class SendFrame(ctk.CTkFrame):
             fg_color=config.COLOR_CARD,
             segmented_button_fg_color="#eae4d7",
             segmented_button_selected_color="#1c1917",
-            segmented_button_selected_text_color="#f3efe6",
-            segmented_button_unselected_color="#eae4d7",
-            segmented_button_unselected_text_color="#1c1917"
+            segmented_button_unselected_color="#e2dcd0"
         )
         self.tabview.pack(fill="both", expand=True, padx=20, pady=5)
         
@@ -153,6 +151,7 @@ class SendFrame(ctk.CTkFrame):
         lbl_speed.pack(pady=(0, 10))
         
         self.tabview.configure(command=self._on_tab_changed)
+        self._update_tab_styles()
 
     def _setup_qr_tab(self):
         lbl_inst = ctk.CTkLabel(
@@ -195,25 +194,46 @@ class SendFrame(ctk.CTkFrame):
             font=ctk.CTkFont(size=12),
             text_color=config.COLOR_TEXT_MUTED
         )
-        lbl_passcode_inst.pack(pady=(15, 8))
+        lbl_passcode_inst.pack(pady=(6, 2))
         
         self.passcode_entry = ctk.CTkEntry(
             self.tab_pass, 
-            font=ctk.CTkFont(family="Consolas", size=22, weight="bold"),
-            width=150,
-            height=44,
+            font=ctk.CTkFont(family="Consolas", size=20, weight="bold"),
+            width=140,
+            height=36,
             justify="center",
-            corner_radius=12,
+            corner_radius=10,
             border_width=1,
             border_color="#d8d0c0"
         )
-        self.passcode_entry.pack(pady=5)
+        self.passcode_entry.pack(pady=2)
+
+        lbl_ip_inst = ctk.CTkLabel(
+            self.tab_pass, 
+            text="Receiver IP (Optional / College Wi-Fi):", 
+            font=ctk.CTkFont(size=11),
+            text_color=config.COLOR_TEXT_MUTED
+        )
+        lbl_ip_inst.pack(pady=(6, 2))
+
+        self.ip_entry = ctk.CTkEntry(
+            self.tab_pass, 
+            placeholder_text="e.g. 10.1.20.150 (Leave empty for auto-scan)",
+            font=ctk.CTkFont(family="Consolas", size=11),
+            width=270,
+            height=32,
+            justify="center",
+            corner_radius=10,
+            border_width=1,
+            border_color="#d8d0c0"
+        )
+        self.ip_entry.pack(pady=2)
         
         self.btn_send = ctk.CTkButton(
             self.tab_pass, 
             text="Send Now", 
-            height=42,
-            corner_radius=21,
+            height=38,
+            corner_radius=19,
             fg_color=config.COLOR_BTN_PRIMARY_BG,
             text_color=config.COLOR_BTN_PRIMARY_FG,
             hover_color=config.COLOR_BTN_PRIMARY_HOVER,
@@ -221,7 +241,7 @@ class SendFrame(ctk.CTkFrame):
             command=self.start_passcode_send, 
             state="disabled"
         )
-        self.btn_send.pack(pady=12)
+        self.btn_send.pack(pady=8)
 
     def select_file(self):
         path = filedialog.askopenfilename(parent=self.controller.root)
@@ -241,7 +261,28 @@ class SendFrame(ctk.CTkFrame):
             self.btn_send.configure(state="normal")
             self._update_web_sender_if_active()
 
+    def _update_tab_styles(self):
+        try:
+            sb = self.tabview._segmented_button
+            cur = self.tabview.get()
+            for name, btn in sb._buttons_dict.items():
+                if name == cur:
+                    btn.configure(
+                        fg_color=config.COLOR_TEXT_PRIMARY,
+                        text_color="#f3efe6",
+                        hover_color="#2b2623"
+                    )
+                else:
+                    btn.configure(
+                        fg_color="#e2dcd0",
+                        text_color=config.COLOR_TEXT_PRIMARY,
+                        hover_color="#d5cebf"
+                    )
+        except Exception:
+            pass
+
     def _on_tab_changed(self):
+        self._update_tab_styles()
         selected_tab = self.tabview.get()
         if "Mobile" in selected_tab:
             if self.controller.sender:
@@ -289,6 +330,8 @@ class SendFrame(ctk.CTkFrame):
 
     def start_passcode_send(self):
         passcode = self.passcode_entry.get().strip()
+        target_ip = self.ip_entry.get().strip() or None
+        
         if len(passcode) != 4 or not passcode.isdigit():
             messagebox.showerror("Error", "Passcode must be a 4-digit number.")
             return
@@ -299,13 +342,14 @@ class SendFrame(ctk.CTkFrame):
             
         self.btn_send.configure(state="disabled")
         self.passcode_entry.configure(state="disabled")
+        self.ip_entry.configure(state="disabled")
         
         self.controller.sender = Sender(
             on_status_callback=self.update_status,
             on_progress_callback=self.update_progress,
             on_complete_callback=self.on_complete
         )
-        self.controller.sender.discover_and_send(self.filepath, passcode)
+        self.controller.sender.discover_and_send(self.filepath, passcode, target_ip)
 
     def update_status(self, msg):
         self.controller.root.after(0, lambda: self.status_var.set(msg))
@@ -314,8 +358,21 @@ class SendFrame(ctk.CTkFrame):
         self.controller.root.after(0, lambda: self.progress_bar.set(percent / 100.0))
         self.controller.root.after(0, lambda: self.speed_var.set(speed_str))
         
-    def on_complete(self, success):
+    def on_complete(self, success, reason=None):
         def reset_ui():
             self.btn_send.configure(state="normal")
             self.passcode_entry.configure(state="normal")
+            self.ip_entry.configure(state="normal")
+            
+            if not success and reason == "DISCOVERY_FAILED":
+                messagebox.showwarning(
+                    "College Wi-Fi Notice (Discovery Failed)",
+                    "Automatic discovery could not locate the Receiver laptop.\n\n"
+                    "Why this happens:\n"
+                    "Enterprise/College Wi-Fi networks (like VIT Bhopal) block UDP Broadcast packets.\n\n"
+                    "How to fix:\n"
+                    "1. Ask the Receiver laptop for their IP address (shown on their Receive screen).\n"
+                    "2. Type their IP in the 'Receiver IP' box above and click 'Send Now'.\n"
+                    "3. Or connect both laptops to a Mobile Hotspot!"
+                )
         self.controller.root.after(0, reset_ui)
