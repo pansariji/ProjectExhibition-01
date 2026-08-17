@@ -33,21 +33,13 @@ LocalDrop supports two distinct modes of operation depending on the target devic
 
 This mode allows two computers running LocalDrop to discover each other and transfer data automatically over local sockets without requiring IP address entry.
 
-### Discovery Stage (UDP Broadcast & Automatic Subnet Unicast Scan)
+### Discovery Stage (UDP Broadcast)
 - Protocol: UDP (port 50025) & TCP (default port 50026).
-- The receiving laptop generates a random 4-digit passcode, binds TCP server to port 50026, and listens on UDP port 50025.
-- **Standard Discovery (UDP Broadcast):** The sending laptop sends a broadcast packet containing `LOCALDROP_DISCOVER:passcode` to `255.255.255.255` and local subnet broadcast.
-- **Enterprise / Campus Wi-Fi Mode (Fast Parallel ARP + TCP + UDP Subnet Engine):**
-  - Enterprise Wi-Fi networks (such as VIT Bhopal) block UDP Broadcast packets (`255.255.255.255`) and turn on AP Isolation.
-  - If UDP Broadcast gets no response within 0.8 seconds, LocalDrop automatically switches to the **Fast Parallel Subnet & ARP Engine**:
-    1. **ARP Cache Inspection**: Parses system `arp -a` cache to instantly locate active local neighbor IPs across all subnets/VLANs.
-    2. **Multi-Threaded Dual Probing**: Dispatches 60 concurrent worker threads sending parallel UDP unicast probes and TCP probes directly to `DEFAULT_P2P_PORT` (50026).
-  - When the matching receiver responds, discovery completes automatically.
-- **Emergency Manual IP Fallback & Hotspot Alternative:**
-  - If university router AP Isolation completely blocks inter-device packets, the user can:
-    1. Enter the Receiver IP into the **Receiver IP (Optional)** input box.
-    2. Use **Mobile QR Mode** over port 8080.
-    3. Turn on a **Mobile Hotspot** on either device (100% bulletproof bypass for campus Wi-Fi AP Isolation running at 50+ MB/s).
+- The receiving laptop generates a random 4-digit passcode, binds a TCP server to port 50026, and listens on UDP port 50025.
+- **Discovery Mechanism:** The sending laptop sends a UDP broadcast packet containing `LOCALDROP_DISCOVER:passcode` to `255.255.255.255` and local subnet broadcast.
+- **Enterprise / Campus Wi-Fi Handling:**
+  - Enterprise Wi-Fi networks enforce Access Point Client Isolation, preventing peer-to-peer scanning between wireless stations.
+  - Users on isolated campus networks can pair directly by entering the Receiver IP into the `Receiver IP (Optional)` input field, which initiates a direct unicast TCP connection over port 50026, or pair via Mobile Hotspot or Mobile QR Web Mode.
 
 ### Data Transfer Stage (TCP Streaming)
 - Protocol: Direct TCP socket stream.

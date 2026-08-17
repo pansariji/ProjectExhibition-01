@@ -35,12 +35,11 @@ LocalDrop is a local network peer-to-peer file and folder sharing application bu
 - **On Receiver Laptop:** Click **Receive File or Folder** and select **Laptop Passcode** tab to view the 4-digit passcode and Receiver IP.
 - **On Sender Laptop:** Click **Send File or Folder**, select file or folder, select **Laptop Passcode** tab, enter the passcode, and click **Send Now**.
 - **College / Campus Wi-Fi Networks (e.g. VIT Bhopal):**
-  - Enterprise Wi-Fi routers block UDP Broadcast packets (`255.255.255.255`) and enable Client Isolation.
-  - LocalDrop uses a **Fast Parallel Subnet & ARP Engine** (multi-threaded TCP & UDP probes on port `50026` + system `arp -a` cache inspection) to find peers automatically.
-  - **Fallback Options if Subnet Scan Fails**:
-    1. **Receiver IP Direct Entry**: Type the Receiver IP (displayed on the Receive screen) into the **Receiver IP (Optional)** field on the Sender screen.
-    2. **Mobile QR Mode**: Switch to the **Mobile QR** tab to transfer files via any web browser over port `8080`.
-    3. **Mobile Hotspot**: Turn on a Mobile Hotspot on either device (100% reliable bulletproof bypass for campus Wi-Fi AP Isolation running at 50+ MB/s).
+  - Enterprise Wi-Fi routers enforce AP Isolation and block UDP Broadcast packets (`255.255.255.255`).
+  - **Handling Campus Network Restrictions**:
+    1. **Receiver IP Direct Entry**: Enter the Receiver IP (displayed on the Receive screen) into the **Receiver IP (Optional)** field on the Sender screen to connect directly via unicast TCP.
+    2. **Mobile QR Mode**: Switch to the **Mobile QR** tab to transfer files via any mobile or desktop web browser over HTTP port `8080`.
+    3. **Mobile Hotspot**: Turn on a Mobile Hotspot on either device (100% reliable bypass for campus Wi-Fi AP Isolation running at 50+ MB/s).
 
 ---
 
