@@ -5,24 +5,39 @@ import config
 
 def get_local_ip():
     """
-    Attempts to find the local IP address of the machine by connecting to a public DNS.
-    This doesn't actually send data, it just sets up the socket to read the local IP.
+    Determines the local IP address of the active network interface.
+    Creates a temporary datagram socket toward a public IP range to resolve
+    the primary network interface IP without transmitting actual network data.
     """
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(('10.255.255.255', 1))
-        IP = s.getsockname()[0]
+        s.connect(('8.8.8.8', 80))
+        local_ip = s.getsockname()[0]
         s.close()
+        return local_ip
     except Exception:
-        IP = '127.0.0.1'
-    return IP
+        pass
+
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(('10.255.255.255', 1))
+        local_ip = s.getsockname()[0]
+        s.close()
+        return local_ip
+    except Exception:
+        return '127.0.0.1'
 
 def generate_passcode():
-    """Generates a random 4-digit passcode as a string."""
+    """
+    Generates a random 4-digit numeric passcode formatted as a zero-padded string.
+    Used for pairing laptop-to-laptop transfers.
+    """
     return f"{random.randint(0, 9999):04d}"
 
 def format_size(size_in_bytes):
-    """Formats a byte count into a human-readable string (KB, MB, GB)."""
+    """
+    Converts a byte count into a formatted human-readable string (B, KB, MB, GB, TB).
+    """
     for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
         if size_in_bytes < 1024.0:
             return f"{size_in_bytes:.2f} {unit}"
@@ -30,7 +45,10 @@ def format_size(size_in_bytes):
     return f"{size_in_bytes:.2f} PB"
 
 def generate_qr_image(url):
-    """Generates a PIL Image of a QR code matching the retro cream theme."""
+    """
+    Generates a PIL Image containing a QR code for mobile browser connections.
+    Converts output to RGB color space to ensure compatibility with CustomTkinter images.
+    """
     try:
         import qrcode
         qr = qrcode.QRCode(
@@ -46,3 +64,4 @@ def generate_qr_image(url):
     except Exception as e:
         print(f"Failed to generate QR code image: {e}")
         return None
+

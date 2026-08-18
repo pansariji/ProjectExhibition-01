@@ -1,6 +1,6 @@
-# LocalDrop System Architecture and Workflow
+# DropIt System Architecture and Workflow
 
-LocalDrop is a local network peer-to-peer file and folder sharing application built with Python and CustomTkinter. It enables direct, secure transfers between laptops and mobile devices on the same Wi-Fi network without requiring cloud servers, internet access, or third-party user accounts.
+DropIt is a local network peer-to-peer file and folder sharing application built with Python and CustomTkinter. It enables direct, secure transfers between laptops and mobile devices on the same Wi-Fi network without requiring cloud servers, internet access, or third-party user accounts.
 
 ---
 
@@ -27,16 +27,16 @@ The application is organized into clean, dedicated Python packages and modules:
 
 # Networking Protocols and Transfer Modes
 
-LocalDrop supports two distinct modes of operation depending on the target device type.
+DropIt supports two distinct modes of operation depending on the target device type.
 
 ## Mode 1: Laptop to Laptop (P2P Passcode Pairing)
 
-This mode allows two computers running LocalDrop to discover each other and transfer data automatically over local sockets without requiring IP address entry.
+This mode allows two computers running DropIt to discover each other and transfer data automatically over local sockets without requiring IP address entry.
 
 ### Discovery Stage (UDP Broadcast)
 - Protocol: UDP (port 50025) & TCP (default port 50026).
 - The receiving laptop generates a random 4-digit passcode, binds a TCP server to port 50026, and listens on UDP port 50025.
-- **Discovery Mechanism:** The sending laptop sends a UDP broadcast packet containing `LOCALDROP_DISCOVER:passcode` to `255.255.255.255` and local subnet broadcast.
+- **Discovery Mechanism:** The sending laptop sends a UDP broadcast packet containing `DROPIT_DISCOVER:passcode` to `255.255.255.255` and local subnet broadcast.
 - **Enterprise / Campus Wi-Fi Handling:**
   - Enterprise Wi-Fi networks enforce Access Point Client Isolation, preventing peer-to-peer scanning between wireless stations.
   - Users on isolated campus networks can pair directly by entering the Receiver IP into the `Receiver IP (Optional)` input field, which initiates a direct unicast TCP connection over port 50026, or pair via Mobile Hotspot or Mobile QR Web Mode.
@@ -45,7 +45,7 @@ This mode allows two computers running LocalDrop to discover each other and tran
 - Protocol: Direct TCP socket stream.
 - Binary Headers: Python's `struct` module serializes metadata headers including item type flags ('F' for single file, 'D' for directory), folder names, entry counts, relative paths, and sizes.
 - Chunked Data Stream: File contents are read and transmitted in 8 KB chunks. This keeps memory consumption minimal regardless of file or folder size.
-- Directory Reconstruction: For folder transfers, LocalDrop recursively walks the directory structure, sends empty directory markers and relative file paths, and recreates the full folder tree inside the recipient's Downloads folder.
+- Directory Reconstruction: For folder transfers, DropIt recursively walks the directory structure, sends empty directory markers and relative file paths, and recreates the full folder tree inside the recipient's Downloads folder.
 
 ---
 
@@ -55,7 +55,7 @@ This mode allows smartphones (iOS and Android) to exchange files with a laptop t
 
 ### Connection Stage (QR Code)
 - Protocol: HTTP over TCP (default port 8080).
-- LocalDrop determines the laptop's local IP address and launches an HTTP server.
+- DropIt determines the laptop's local IP address and launches an HTTP server.
 - It generates a QR code containing the web server URL (for example, `http://192.168.1.5:8080`).
 - Scanning the QR code opens the mobile interface directly in Safari or Chrome.
 
@@ -66,7 +66,7 @@ This mode allows smartphones (iOS and Android) to exchange files with a laptop t
 
 ### Laptop to Mobile Downloads (Web Sender)
 - Single Files: Tapping download sends an HTTP GET request to `/download`. The laptop serves the file with an `application/octet-stream` header.
-- Folder Downloads: Since mobile browsers cannot directly download uncompressed folder trees, LocalDrop dynamically creates a `.zip` archive in a temporary directory using Python's `shutil` module, serving the zipped directory for a single-tap download.
+- Folder Downloads: Since mobile browsers cannot directly download uncompressed folder trees, DropIt dynamically creates a `.zip` archive in a temporary directory using Python's `shutil` module, serving the zipped directory for a single-tap download.
 
 ---
 

@@ -1,6 +1,6 @@
-# LocalDrop
+# DropIt
 
-LocalDrop is a local network peer-to-peer file and folder sharing application built with Python and CustomTkinter. It allows laptops and mobile devices on the same Wi-Fi network to transfer files and complete folder structures securely without needing external cloud services.
+DropIt is a local network peer-to-peer file and folder sharing application built with Python and CustomTkinter. It allows laptops and mobile devices on the same Wi-Fi network to transfer files and complete folder structures securely without needing external cloud services.
 
 ## Features
 - **Warm Cream Retro-Tech Editorial UI**: Powered by CustomTkinter with rounded paper cards, Space Grotesk and Consolas typography, smooth progress tracking, and a warm cream aesthetic.
@@ -34,18 +34,18 @@ LocalDrop is a local network peer-to-peer file and folder sharing application bu
 ### Laptop-to-Laptop Transfer (Passcode Mode)
 - **On Receiver Laptop:** Click **Receive File or Folder** and select **Laptop Passcode** tab to view the 4-digit passcode and Receiver IP.
 - **On Sender Laptop:** Click **Send File or Folder**, select file or folder, select **Laptop Passcode** tab, enter the passcode, and click **Send Now**.
-- **College / Campus Wi-Fi Networks (e.g. VIT Bhopal):**
-  - Enterprise Wi-Fi routers enforce AP Isolation and block UDP Broadcast packets (`255.255.255.255`).
-  - **Handling Campus Network Restrictions**:
+- **Restricted / Enterprise Wi-Fi Networks:**
+  - Enterprise Wi-Fi routers often enforce AP Isolation and block UDP Broadcast packets (`255.255.255.255`).
+  - **Handling Restricted Network Limitations**:
     1. **Receiver IP Direct Entry**: Enter the Receiver IP (displayed on the Receive screen) into the **Receiver IP (Optional)** field on the Sender screen to connect directly via unicast TCP.
     2. **Mobile QR Mode**: Switch to the **Mobile QR** tab to transfer files via any mobile or desktop web browser over HTTP port `8080`.
-    3. **Mobile Hotspot**: Turn on a Mobile Hotspot on either device (100% reliable bypass for campus Wi-Fi AP Isolation running at 50+ MB/s).
+    3. **Mobile Hotspot**: Turn on a Mobile Hotspot on either device (100% reliable bypass for network AP Isolation running at 50+ MB/s).
 
 ---
 
 ## Codebase Architecture
 
-LocalDrop is structured as a clean, modular Python application:
+DropIt is structured as a clean, modular Python application:
 
 ```
 PE1/

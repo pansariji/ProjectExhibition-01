@@ -8,13 +8,18 @@ from p2p import Sender
 from web import WebSender
 
 class SendFrame(ctk.CTkFrame):
+    """
+    UI Frame managing outgoing file/folder transfers.
+    Supports sharing via mobile web browser (QR code) or direct laptop-to-laptop
+    peer-to-peer transmission (4-digit passcode or direct IP entry).
+    """
     def __init__(self, parent, controller):
         super().__init__(parent, fg_color=config.COLOR_BG)
         self.controller = controller
         self.filepath = None
         self.ctk_qr_img = None
         
-        # Top Bar
+        # Top Navigation Bar
         top_bar = ctk.CTkFrame(self, fg_color="transparent")
         top_bar.pack(fill="x", padx=20, pady=(15, 5))
         
@@ -42,7 +47,7 @@ class SendFrame(ctk.CTkFrame):
         )
         lbl_header.pack(side="left", padx=20)
         
-        # File / Folder Picker Card
+        # File and Folder Selector Card
         picker_card = ctk.CTkFrame(
             self, 
             corner_radius=16, 
@@ -94,7 +99,7 @@ class SendFrame(ctk.CTkFrame):
         )
         self.lbl_file.pack(pady=(0, 10))
         
-        # Segmented Tab View
+        # Segmented Mode Selection View
         self.tabview = ctk.CTkTabview(
             self, 
             corner_radius=16,
@@ -111,7 +116,7 @@ class SendFrame(ctk.CTkFrame):
         self._setup_qr_tab()
         self._setup_passcode_tab()
         
-        # Bottom Status Panel
+        # Status and Progress Bar Panel
         self.status_card = ctk.CTkFrame(
             self, 
             corner_radius=16, 
@@ -154,6 +159,7 @@ class SendFrame(ctk.CTkFrame):
         self._update_tab_styles()
 
     def _setup_qr_tab(self):
+        """Initializes controls for Mobile Browser Web Sharing."""
         lbl_inst = ctk.CTkLabel(
             self.tab_qr, 
             text="Scan with mobile camera to download:", 
@@ -188,6 +194,7 @@ class SendFrame(ctk.CTkFrame):
         lbl_url.pack(pady=4)
 
     def _setup_passcode_tab(self):
+        """Initializes controls for Laptop-to-Laptop Passcode and IP Transfer."""
         lbl_passcode_inst = ctk.CTkLabel(
             self.tab_pass, 
             text="Enter receiver laptop passcode:", 
@@ -210,7 +217,7 @@ class SendFrame(ctk.CTkFrame):
 
         lbl_ip_inst = ctk.CTkLabel(
             self.tab_pass, 
-            text="Receiver IP (Optional / College Wi-Fi):", 
+            text="Receiver IP (Optional / Restricted Network):", 
             font=ctk.CTkFont(size=11),
             text_color=config.COLOR_TEXT_MUTED
         )
@@ -218,7 +225,7 @@ class SendFrame(ctk.CTkFrame):
 
         self.ip_entry = ctk.CTkEntry(
             self.tab_pass, 
-            placeholder_text="e.g. 10.1.20.150 (Leave empty for auto-scan)",
+            placeholder_text="e.g. 192.168.1.50 (Leave empty for auto-scan)",
             font=ctk.CTkFont(family="Consolas", size=11),
             width=270,
             height=32,
@@ -244,6 +251,7 @@ class SendFrame(ctk.CTkFrame):
         self.btn_send.pack(pady=8)
 
     def select_file(self):
+        """Opens file selection dialog."""
         path = filedialog.askopenfilename(parent=self.controller.root)
         if path:
             self.filepath = path
@@ -253,6 +261,7 @@ class SendFrame(ctk.CTkFrame):
             self._update_web_sender_if_active()
 
     def select_folder(self):
+        """Opens folder selection dialog."""
         path = filedialog.askdirectory(parent=self.controller.root)
         if path:
             self.filepath = path
@@ -262,6 +271,7 @@ class SendFrame(ctk.CTkFrame):
             self._update_web_sender_if_active()
 
     def _update_tab_styles(self):
+        """Ensures high-contrast text and background colors for mode tabs."""
         try:
             sb = self.tabview._segmented_button
             cur = self.tabview.get()
@@ -282,6 +292,7 @@ class SendFrame(ctk.CTkFrame):
             pass
 
     def _on_tab_changed(self):
+        """Handles mode tab change event to stop unused servers and reinitialize active route."""
         self._update_tab_styles()
         selected_tab = self.tabview.get()
         if "Mobile" in selected_tab:
@@ -297,6 +308,7 @@ class SendFrame(ctk.CTkFrame):
             self.url_var.set("Switched to Laptop Passcode Mode")
 
     def _update_web_sender_if_active(self):
+        """Starts HTTP web server and renders QR code if Mobile Web mode is selected."""
         if not self.filepath:
             self.url_var.set("Select a file or folder above")
             return
@@ -329,6 +341,7 @@ class SendFrame(ctk.CTkFrame):
             self.lbl_qr_image.configure(image=self.ctk_qr_img)
 
     def start_passcode_send(self):
+        """Validates input parameters and launches P2P transmission background thread."""
         passcode = self.passcode_entry.get().strip()
         target_ip = self.ip_entry.get().strip() or None
         
@@ -352,13 +365,16 @@ class SendFrame(ctk.CTkFrame):
         self.controller.sender.discover_and_send(self.filepath, passcode, target_ip)
 
     def update_status(self, msg):
+        """Thread-safe status label updater."""
         self.controller.root.after(0, lambda: self.status_var.set(msg))
 
     def update_progress(self, percent, speed_str):
+        """Thread-safe progress bar and speed label updater."""
         self.controller.root.after(0, lambda: self.progress_bar.set(percent / 100.0))
         self.controller.root.after(0, lambda: self.speed_var.set(speed_str))
         
     def on_complete(self, success, reason=None):
+        """Resets controls and displays appropriate dialog on transfer completion or error."""
         def reset_ui():
             self.btn_send.configure(state="normal")
             self.passcode_entry.configure(state="normal")
@@ -366,13 +382,14 @@ class SendFrame(ctk.CTkFrame):
             
             if not success and reason == "DISCOVERY_FAILED":
                 messagebox.showwarning(
-                    "College Wi-Fi Notice (Discovery Failed)",
+                    "Network Notice (Discovery Failed)",
                     "Automatic discovery could not locate the Receiver laptop.\n\n"
                     "Why this happens:\n"
-                    "Enterprise/College Wi-Fi networks (like VIT Bhopal) block UDP Broadcast packets.\n\n"
+                    "Enterprise and campus Wi-Fi networks often block UDP broadcast packets.\n\n"
                     "How to fix:\n"
                     "1. Ask the Receiver laptop for their IP address (shown on their Receive screen).\n"
                     "2. Type their IP in the 'Receiver IP' box above and click 'Send Now'.\n"
-                    "3. Or connect both laptops to a Mobile Hotspot!"
+                    "3. Alternatively, connect both devices to a Mobile Hotspot."
                 )
         self.controller.root.after(0, reset_ui)
+

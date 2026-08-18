@@ -11,12 +11,18 @@ import config
 from utils import get_local_ip, format_size
 from web.templates import MOBILE_UPLOAD_HTML_PAGE, MOBILE_DOWNLOAD_HTML_PAGE
 
-class LocalDropHTTPHandler(http.server.BaseHTTPRequestHandler):
+class DropItHTTPHandler(http.server.BaseHTTPRequestHandler):
+    """
+    HTTP request handler serving mobile web interfaces for uploading files/folders
+    to the laptop or downloading shared items from the laptop.
+    """
     def log_message(self, format, *args):
+        """Suppresses default HTTP server stdout logging."""
         pass
 
     def do_GET(self):
-        # Receiver Mode (Mobile Uploads to Laptop)
+        """Handles HTTP GET requests for rendering web pages or streaming downloads."""
+        # Web Receiver Mode (Mobile browser uploads files to Laptop)
         if hasattr(self.server, 'web_receiver'):
             if self.path == '/' or self.path == '/index.html':
                 self.send_response(200)
@@ -26,7 +32,7 @@ class LocalDropHTTPHandler(http.server.BaseHTTPRequestHandler):
             else:
                 self.send_error(404, "Not Found")
                 
-        # Sender Mode (Mobile Downloads from Laptop)
+        # Web Sender Mode (Mobile browser downloads shared file/zip from Laptop)
         elif hasattr(self.server, 'web_sender'):
             ws = self.server.web_sender
             if self.path == '/' or self.path == '/index.html':
@@ -84,6 +90,7 @@ class LocalDropHTTPHandler(http.server.BaseHTTPRequestHandler):
                 self.send_error(404, "Not Found")
 
     def do_POST(self):
+        """Handles HTTP POST requests for receiving mobile file uploads."""
         if hasattr(self.server, 'web_receiver') and self.path == '/upload':
             try:
                 raw_relpath = self.headers.get('X-Relative-Path', '')
@@ -130,6 +137,9 @@ class LocalDropHTTPHandler(http.server.BaseHTTPRequestHandler):
 
 
 class WebReceiver:
+    """
+    HTTP Web Receiver server enabling mobile browser users to upload files/folders directly to the laptop.
+    """
     def __init__(self, port=config.DEFAULT_WEB_PORT, on_status_callback=None, on_progress_callback=None, on_complete_callback=None):
         self.port = port
         self.on_status = on_status_callback
@@ -147,10 +157,12 @@ class WebReceiver:
             os.makedirs(self.downloads_dir)
 
     def start(self):
+        """Starts the HTTP server on an available port in a background daemon thread."""
         self.running = True
+        socketserver.TCPServer.allow_reuse_address = True
         while self.running:
             try:
-                self.httpd = socketserver.TCPServer(('0.0.0.0', self.port), LocalDropHTTPHandler)
+                self.httpd = socketserver.TCPServer(('0.0.0.0', self.port), DropItHTTPHandler)
                 self.httpd.web_receiver = self
                 break
             except OSError:
@@ -163,6 +175,7 @@ class WebReceiver:
         threading.Thread(target=self.httpd.serve_forever, daemon=True).start()
 
     def stop(self):
+        """Shuts down the HTTP server."""
         self.running = False
         if self.httpd:
             try:
@@ -172,6 +185,7 @@ class WebReceiver:
                 pass
 
     def notify_progress(self, rel_path, received, total, elapsed, bytes_diff):
+        """Reports transfer progress percentage and speed."""
         if self.on_progress:
             percent = (received / total * 100) if total > 0 else 100.0
             bytes_sec = (bytes_diff / elapsed) if elapsed > 0 else 0
@@ -181,6 +195,7 @@ class WebReceiver:
             self.on_status(f"Receiving {rel_path} ({format_size(received)} / {format_size(total)})")
 
     def notify_complete(self, filepath):
+        """Triggers transfer completion callbacks."""
         if self.on_status:
             self.on_status(f"Saved: {os.path.basename(filepath)}")
         if self.on_complete:
@@ -188,6 +203,10 @@ class WebReceiver:
 
 
 class WebSender:
+    """
+    HTTP Web Sender server enabling mobile browser users to download shared files/folders from the laptop.
+    Automatically compresses shared folders into temporary ZIP archives prior to streaming.
+    """
     def __init__(self, shared_path, port=config.DEFAULT_WEB_PORT, on_status_callback=None, on_progress_callback=None, on_complete_callback=None):
         self.shared_path = shared_path
         self.port = port
@@ -207,7 +226,7 @@ class WebSender:
         if self.is_dir:
             base_name = os.path.basename(os.path.normpath(shared_path))
             temp_dir = tempfile.gettempdir()
-            zip_base = os.path.join(temp_dir, f"localdrop_{base_name}")
+            zip_base = os.path.join(temp_dir, f"dropit_{base_name}")
             self.temp_zip_path = shutil.make_archive(zip_base, 'zip', shared_path)
             self.serve_path = self.temp_zip_path
             self.target_filename = f"{base_name}.zip"
@@ -218,10 +237,12 @@ class WebSender:
             self.file_size = os.path.getsize(shared_path)
 
     def start(self):
+        """Starts the HTTP server serving the shared asset on an available port."""
         self.running = True
+        socketserver.TCPServer.allow_reuse_address = True
         while self.running:
             try:
-                self.httpd = socketserver.TCPServer(('0.0.0.0', self.port), LocalDropHTTPHandler)
+                self.httpd = socketserver.TCPServer(('0.0.0.0', self.port), DropItHTTPHandler)
                 self.httpd.web_sender = self
                 break
             except OSError:
@@ -234,6 +255,7 @@ class WebSender:
         threading.Thread(target=self.httpd.serve_forever, daemon=True).start()
 
     def stop(self):
+        """Shuts down the HTTP server and removes any temporary ZIP archive created for directory sharing."""
         self.running = False
         if self.httpd:
             try:
@@ -248,6 +270,7 @@ class WebSender:
                 pass
 
     def notify_progress(self, sent, total, elapsed, bytes_diff):
+        """Reports transfer progress percentage and transfer speed."""
         if self.on_progress:
             percent = (sent / total * 100) if total > 0 else 100.0
             bytes_sec = (bytes_diff / elapsed) if elapsed > 0 else 0
@@ -257,7 +280,9 @@ class WebSender:
             self.on_status(f"Sending {self.target_filename} ({format_size(sent)} / {format_size(total)})")
 
     def notify_complete(self, success):
+        """Triggers transfer completion callbacks."""
         if self.on_status:
             self.on_status("Transfer complete!" if success else "Transfer failed.")
         if self.on_complete:
             self.on_complete(success)
+
