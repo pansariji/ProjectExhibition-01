@@ -96,14 +96,42 @@ class ReceiveFrame(ctk.CTkFrame):
         self.progress_bar.pack(fill="x", padx=20, pady=4)
         self.progress_bar.set(0)
         
-        self.speed_var = ctk.StringVar(value="")
-        lbl_speed = ctk.CTkLabel(
-            self.status_card, 
-            textvariable=self.speed_var, 
-            font=ctk.CTkFont(family="Consolas", size=12, weight="bold"),
-            text_color=config.COLOR_GREEN
-        )
-        lbl_speed.pack(pady=(0, 4))
+        # Metrics Grid Panel (Current Speed, Avg Speed, Peak Speed, Total Size)
+        self.metrics_frame = ctk.CTkFrame(self.status_card, fg_color="transparent")
+        self.metrics_frame.pack(fill="x", padx=16, pady=(6, 8))
+        self.metrics_frame.columnconfigure((0, 1, 2, 3), weight=1)
+
+        # 1. Current Speed
+        f_cur = ctk.CTkFrame(self.metrics_frame, fg_color="#eae4d7", corner_radius=8)
+        f_cur.grid(row=0, column=0, padx=3, pady=2, sticky="ew")
+        lbl_cur_title = ctk.CTkLabel(f_cur, text="CURRENT", font=ctk.CTkFont(size=9, weight="bold"), text_color=config.COLOR_TEXT_MUTED)
+        lbl_cur_title.pack(pady=(4, 0))
+        self.lbl_cur_val = ctk.CTkLabel(f_cur, text="--", font=ctk.CTkFont(family="Consolas", size=11, weight="bold"), text_color=config.COLOR_GREEN)
+        self.lbl_cur_val.pack(pady=(0, 4))
+
+        # 2. Avg Speed
+        f_avg = ctk.CTkFrame(self.metrics_frame, fg_color="#eae4d7", corner_radius=8)
+        f_avg.grid(row=0, column=1, padx=3, pady=2, sticky="ew")
+        lbl_avg_title = ctk.CTkLabel(f_avg, text="AVG SPEED", font=ctk.CTkFont(size=9, weight="bold"), text_color=config.COLOR_TEXT_MUTED)
+        lbl_avg_title.pack(pady=(4, 0))
+        self.lbl_avg_val = ctk.CTkLabel(f_avg, text="--", font=ctk.CTkFont(family="Consolas", size=11, weight="bold"), text_color=config.COLOR_TEXT_PRIMARY)
+        self.lbl_avg_val.pack(pady=(0, 4))
+
+        # 3. Peak Speed
+        f_peak = ctk.CTkFrame(self.metrics_frame, fg_color="#eae4d7", corner_radius=8)
+        f_peak.grid(row=0, column=2, padx=3, pady=2, sticky="ew")
+        lbl_peak_title = ctk.CTkLabel(f_peak, text="PEAK SPEED", font=ctk.CTkFont(size=9, weight="bold"), text_color=config.COLOR_TEXT_MUTED)
+        lbl_peak_title.pack(pady=(4, 0))
+        self.lbl_peak_val = ctk.CTkLabel(f_peak, text="--", font=ctk.CTkFont(family="Consolas", size=11, weight="bold"), text_color=config.COLOR_TEXT_PRIMARY)
+        self.lbl_peak_val.pack(pady=(0, 4))
+
+        # 4. Total Size / Transferred
+        f_size = ctk.CTkFrame(self.metrics_frame, fg_color="#eae4d7", corner_radius=8)
+        f_size.grid(row=0, column=3, padx=3, pady=2, sticky="ew")
+        lbl_size_title = ctk.CTkLabel(f_size, text="SIZE / TOTAL", font=ctk.CTkFont(size=9, weight="bold"), text_color=config.COLOR_TEXT_MUTED)
+        lbl_size_title.pack(pady=(4, 0))
+        self.lbl_size_val = ctk.CTkLabel(f_size, text="-- / --", font=ctk.CTkFont(family="Consolas", size=10, weight="bold"), text_color=config.COLOR_TEXT_PRIMARY)
+        self.lbl_size_val.pack(pady=(0, 4))
         
         self.btn_open = ctk.CTkButton(
             self.status_card, 
@@ -266,10 +294,24 @@ class ReceiveFrame(ctk.CTkFrame):
         """Thread-safe status text updater."""
         self.controller.root.after(0, lambda: self.status_var.set(msg))
 
-    def update_progress(self, percent, speed_str):
-        """Thread-safe progress bar and speed display updater."""
-        self.controller.root.after(0, lambda: self.progress_bar.set(percent / 100.0))
-        self.controller.root.after(0, lambda: self.speed_var.set(speed_str))
+    def update_progress(self, percent, cur_speed="--", avg_speed="--", peak_speed="--", size_info="--"):
+        """Thread-safe progress bar and live metrics updater (Avg Speed shown after completion)."""
+        def update_ui():
+            self.progress_bar.set(percent / 100.0)
+            if cur_speed == "Done":
+                self.lbl_cur_val.configure(text="Done")
+                if avg_speed != "--":
+                    self.lbl_avg_val.configure(text=avg_speed)
+                if peak_speed != "--":
+                    self.lbl_peak_val.configure(text=peak_speed)
+                if size_info != "--":
+                    self.lbl_size_val.configure(text=size_info)
+            else:
+                self.lbl_cur_val.configure(text=cur_speed)
+                self.lbl_avg_val.configure(text="--")
+                self.lbl_peak_val.configure(text=peak_speed)
+                self.lbl_size_val.configure(text=size_info)
+        self.controller.root.after(0, update_ui)
         
     def on_complete(self, success, filepath=None):
         """Enables the 'Show Received Item' button upon successful transfer."""

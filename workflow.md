@@ -55,7 +55,7 @@ This mode allows any mobile device (iOS/Android) to exchange files with a laptop
 
 #### 1. Connection Phase (QR Code)
 - DropIt resolves the laptop's LAN IP address, initializes an HTTP server on port `8080`, and generates a QR code pointing to `http://<LAPTOP_IP>:8080`.
-- Scanning the QR code opens the DropIt mobile web interface in Chrome, Brave, Opera, Safari, or Firefox.
+- Scanning the QR code opens the DropIt mobile web interface in Chrome(Recommended), Brave, Opera, Safari, or Firefox.
 
 #### 2. Universal Browser & CORS Compliance
 - **CORS Headers**: All HTTP responses include `Access-Control-Allow-Origin: *` to prevent privacy-focused browsers (Brave Shields, Opera) from blocking local IP requests.

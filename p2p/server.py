@@ -133,6 +133,7 @@ class Receiver:
                 start_time = time.time()
                 last_update_time = start_time
                 last_received_bytes = 0
+                peak_bytes_sec = 0.0
 
                 for _ in range(entry_count):
                     if not self.running:
@@ -177,15 +178,33 @@ class Receiver:
                                 current_time = time.time()
                                 if current_time - last_update_time > 0.1:
                                     percent = (total_received_bytes / total_size * 100) if total_size > 0 else 100.0
-                                    elapsed = current_time - last_update_time
-                                    bytes_sec = (total_received_bytes - last_received_bytes) / elapsed if elapsed > 0 else 0
-                                    speed_str = f"{format_size(bytes_sec)}/s"
-                                    self.on_progress(percent, speed_str)
+                                    elapsed_interval = current_time - last_update_time
+                                    total_elapsed = max(current_time - start_time, 0.001)
+
+                                    bytes_diff = total_received_bytes - last_received_bytes
+                                    cur_bytes_sec = bytes_diff / elapsed_interval if elapsed_interval > 0 else 0
+                                    avg_bytes_sec = total_received_bytes / total_elapsed if total_elapsed > 0 else 0
+                                    peak_bytes_sec = max(peak_bytes_sec, cur_bytes_sec)
+
+                                    cur_speed_str = f"{format_size(cur_bytes_sec)}/s"
+                                    avg_speed_str = f"{format_size(avg_bytes_sec)}/s"
+                                    peak_speed_str = f"{format_size(peak_bytes_sec)}/s"
+                                    size_info_str = f"{format_size(total_received_bytes)} / {format_size(total_size)}"
+
+                                    self.on_progress(percent, cur_speed_str, avg_speed_str, peak_speed_str, size_info_str)
                                     last_update_time = current_time
                                     last_received_bytes = total_received_bytes
 
                 if self.running:
-                    self.on_progress(100.0, "Done")
+                    total_elapsed = max(time.time() - start_time, 0.001)
+                    final_avg = (total_received_bytes / total_elapsed) if total_elapsed > 0 else 0
+                    self.on_progress(
+                        100.0, 
+                        "Done", 
+                        f"{format_size(final_avg)}/s", 
+                        f"{format_size(peak_bytes_sec)}/s", 
+                        f"{format_size(total_received_bytes)} / {format_size(total_size)}"
+                    )
                     self.on_status(f"Folder transfer complete. Saved to Downloads/{foldername}")
                     self.on_complete(True, dest_folder)
                 else:
@@ -211,6 +230,7 @@ class Receiver:
                 start_time = time.time()
                 last_update_time = start_time
                 last_received_bytes = 0
+                peak_bytes_sec = 0.0
 
                 with open(filepath, 'wb') as f:
                     while received_bytes < file_size and self.running:
@@ -224,16 +244,35 @@ class Receiver:
                         current_time = time.time()
                         if current_time - last_update_time > 0.1:
                             percent = (received_bytes / file_size * 100) if file_size > 0 else 100.0
-                            elapsed = current_time - last_update_time
-                            bytes_sec = (received_bytes - last_received_bytes) / elapsed if elapsed > 0 else 0
-                            speed_str = f"{format_size(bytes_sec)}/s"
+                            elapsed_interval = current_time - last_update_time
+                            total_elapsed = max(current_time - start_time, 0.001)
 
-                            self.on_progress(percent, speed_str)
+                            bytes_diff = received_bytes - last_received_bytes
+                            cur_bytes_sec = bytes_diff / elapsed_interval if elapsed_interval > 0 else 0
+                            avg_bytes_sec = received_bytes / total_elapsed if total_elapsed > 0 else 0
+                            peak_bytes_sec = max(peak_bytes_sec, cur_bytes_sec)
+
+                            cur_speed_str = f"{format_size(cur_bytes_sec)}/s"
+                            avg_speed_str = f"{format_size(avg_bytes_sec)}/s"
+                            peak_speed_str = f"{format_size(peak_bytes_sec)}/s"
+                            size_info_str = f"{format_size(received_bytes)} / {format_size(file_size)}"
+
+                            self.on_progress(percent, cur_speed_str, avg_speed_str, peak_speed_str, size_info_str)
                             last_update_time = current_time
                             last_received_bytes = received_bytes
 
                 if received_bytes == file_size:
-                    self.on_progress(100.0, "Done")
+                    total_elapsed = max(time.time() - start_time, 0.001)
+                    final_avg = (received_bytes / total_elapsed) if total_elapsed > 0 else 0
+                    self.on_progress(
+                        100.0, 
+                        "Done", 
+                        f"{format_size(final_avg)}/s", 
+                        f"{format_size(peak_bytes_sec)}/s", 
+                        f"{format_size(received_bytes)} / {format_size(file_size)}"
+                    )
+                    self.on_status("Transfer complete. Saved to Downloads folder.")
+                    self.on_complete(True, filepath)
                     self.on_status("Transfer complete. Saved to Downloads folder.")
                     self.on_complete(True, filepath)
                 else:
