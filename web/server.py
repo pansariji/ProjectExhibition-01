@@ -6,6 +6,7 @@ import os
 import time
 import shutil
 import tempfile
+import zipfile
 
 import config
 from utils import get_local_ip, format_size
@@ -49,6 +50,15 @@ class DropItHTTPHandler(http.server.BaseHTTPRequestHandler):
         # Web Sender Mode (Mobile browser downloads shared file/zip from Laptop)
         elif hasattr(self.server, 'web_sender'):
             ws = self.server.web_sender
+            
+            # Wait for background folder compression if in progress
+            while ws.running and not ws.ready:
+                time.sleep(0.1)
+
+            if not ws.running or not ws.ready or not ws.serve_path:
+                self.send_error(503, "Archive compression in progress. Please refresh in a moment.")
+                return
+
             if self.path == '/' or self.path == '/index.html':
                 item_name = os.path.basename(ws.target_filename)
                 item_size = format_size(ws.file_size)
@@ -247,7 +257,7 @@ class WebReceiver:
 class WebSender:
     """
     HTTP Web Sender server enabling mobile browser users to download shared files/folders from the laptop.
-    Automatically compresses shared folders into temporary ZIP archives prior to streaming.
+    Automatically compresses shared folders into temporary ZIP archives in a background thread to keep GUI smooth.
     """
     def __init__(self, shared_path, port=config.DEFAULT_WEB_PORT, on_status_callback=None, on_progress_callback=None, on_complete_callback=None):
         self.shared_path = shared_path
@@ -260,6 +270,7 @@ class WebSender:
         self.url = f"http://{self.local_ip}:{self.port}"
 
         self.running = False
+        self.ready = False
         self.httpd = None
         self.temp_zip_path = None
 
@@ -267,16 +278,15 @@ class WebSender:
 
         if self.is_dir:
             base_name = os.path.basename(os.path.normpath(shared_path))
-            temp_dir = tempfile.gettempdir()
-            zip_base = os.path.join(temp_dir, f"dropit_{base_name}")
-            self.temp_zip_path = shutil.make_archive(zip_base, 'zip', shared_path)
-            self.serve_path = self.temp_zip_path
             self.target_filename = f"{base_name}.zip"
-            self.file_size = os.path.getsize(self.temp_zip_path)
+            self.serve_path = None
+            self.file_size = 0
+            self.ready = False
         else:
             self.serve_path = shared_path
             self.target_filename = os.path.basename(shared_path)
             self.file_size = os.path.getsize(shared_path)
+            self.ready = True
 
     def start(self):
         """Starts the HTTP server serving the shared asset on an available port."""
@@ -291,8 +301,37 @@ class WebSender:
                 self.port += 1
                 self.url = f"http://{self.local_ip}:{self.port}"
 
-        if self.on_status:
-            self.on_status(f"Sharing via Web at {self.url}")
+        if self.is_dir:
+            def _prepare_zip():
+                if self.on_status:
+                    self.on_status("Packaging folder for mobile web sharing...")
+                try:
+                    base_name = os.path.basename(os.path.normpath(self.shared_path))
+                    temp_dir = tempfile.gettempdir()
+                    zip_path = os.path.join(temp_dir, f"dropit_{base_name}.zip")
+                    
+                    # Create uncompressed ZIP container (ZIP_STORED) at raw disk speed (~10x-50x faster)
+                    with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_STORED) as zipf:
+                        for root, dirs, files in os.walk(self.shared_path):
+                            for file in files:
+                                abs_path = os.path.join(root, file)
+                                rel_path = os.path.relpath(abs_path, self.shared_path)
+                                zipf.write(abs_path, rel_path)
+
+                    self.temp_zip_path = zip_path
+                    self.serve_path = self.temp_zip_path
+                    self.file_size = os.path.getsize(self.temp_zip_path)
+                    self.ready = True
+                    if self.on_status:
+                        self.on_status(f"Sharing via Web at {self.url}")
+                except Exception as e:
+                    if self.on_status:
+                        self.on_status(f"Zip Error: {e}")
+
+            threading.Thread(target=_prepare_zip, daemon=True).start()
+        else:
+            if self.on_status:
+                self.on_status(f"Sharing via Web at {self.url}")
 
         threading.Thread(target=self.httpd.serve_forever, daemon=True).start()
 
