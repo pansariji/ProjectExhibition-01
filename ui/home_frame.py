@@ -1,12 +1,19 @@
+import os
+from PIL import Image
 import customtkinter as ctk
 import config
 
 class HomeFrame(ctk.CTkFrame):
+    """
+    Main Application Dashboard View.
+    Displays the hero branding, status badges, and primary action buttons to navigate
+    to either the Send or Receive workflow.
+    """
     def __init__(self, parent, controller):
         super().__init__(parent, fg_color=config.COLOR_BG)
         self.controller = controller
         
-        # Main Hero Card
+        # Main Hero Card Surface
         hero_card = ctk.CTkFrame(
             self, 
             corner_radius=22, 
@@ -14,9 +21,20 @@ class HomeFrame(ctk.CTkFrame):
             border_width=1,
             border_color=config.COLOR_BORDER
         )
-        hero_card.pack(fill="x", padx=28, pady=(45, 25))
+        hero_card.pack(fill="x", padx=28, pady=(25, 20))
+
+        # Brand Logo Header
+        logo_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets", "logo.png")
+        if os.path.exists(logo_path):
+            try:
+                pil_logo = Image.open(logo_path)
+                ctk_logo = ctk.CTkImage(light_image=pil_logo, dark_image=pil_logo, size=(64, 64))
+                lbl_logo = ctk.CTkLabel(hero_card, image=ctk_logo, text="")
+                lbl_logo.pack(pady=(20, 4))
+            except Exception:
+                pass
         
-        # Status / Routing Pill Badge
+        # Status & Active Network Route Pill Badge
         badge_frame = ctk.CTkFrame(
             hero_card, 
             corner_radius=100, 
@@ -24,7 +42,7 @@ class HomeFrame(ctk.CTkFrame):
             border_width=1, 
             border_color="#d8d0c0"
         )
-        badge_frame.pack(pady=(24, 8))
+        badge_frame.pack(pady=(8, 8))
         
         lbl_tag = ctk.CTkLabel(
             badge_frame,
@@ -50,7 +68,7 @@ class HomeFrame(ctk.CTkFrame):
         )
         lbl_subtitle.pack(pady=(0, 16))
         
-        # Inline Tags Container (Subtle Non-Clickable Feature Badges)
+        # Non-clickable Feature Tag Badges
         tags_container = ctk.CTkFrame(hero_card, fg_color="transparent")
         tags_container.pack(pady=(0, 24))
         
@@ -113,7 +131,7 @@ class HomeFrame(ctk.CTkFrame):
         )
         btn_receive.pack(fill="x", padx=28, pady=0)
 
-        # Footer metadata
+        # Footer Metadata
         lbl_info = ctk.CTkLabel(
             self, 
             text=f"LOCAL COMPANION  •  VERSION {config.APP_VERSION}", 
@@ -121,3 +139,4 @@ class HomeFrame(ctk.CTkFrame):
             text_color=config.COLOR_TEXT_MUTED
         )
         lbl_info.pack(side="bottom", pady=25)
+

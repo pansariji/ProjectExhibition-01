@@ -4,33 +4,35 @@ import os
 APPEARANCE_MODE = "Light"
 COLOR_THEME = "blue"
 
-# Theme Palette Constants (Warm Cream / Oatmeal Retro-Tech Editorial)
-COLOR_BG = "#f3efe6"            # Warm Cream / Oatmeal Paper
-COLOR_CARD = "#faf7f0"          # Warm Soft Off-White Card
-COLOR_CARD_ALT = "#eae4d7"      # Subtle Neutral Fill
-COLOR_BORDER = "#e2dcd0"        # Soft Warm Border
-COLOR_TEXT_PRIMARY = "#1c1917"  # Deep Charcoal
-COLOR_TEXT_MUTED = "#78716c"    # Warm Taupe / Muted Gray
-COLOR_GREEN = "#15803d"         # Retro Emerald Green (Active/Routing)
-COLOR_GREEN_HOVER = "#166534"
+# Visual Theme Tokens (Warm Cream Editorial Palette)
+COLOR_BG = "#f3efe6"            # Main application background
+COLOR_CARD = "#faf7f0"          # Card surface background
+COLOR_CARD_ALT = "#eae4d7"      # Secondary card fill
+COLOR_BORDER = "#e2dcd0"        # Card border color
+COLOR_TEXT_PRIMARY = "#1c1917"  # High-contrast primary text
+COLOR_TEXT_MUTED = "#78716c"    # Secondary muted text
+COLOR_GREEN = "#15803d"         # Active routing and success status indicator
+COLOR_GREEN_HOVER = "#166534"   # Hover state for green buttons
 
-COLOR_BTN_PRIMARY_BG = "#1c1917"   # Charcoal Pill Button
-COLOR_BTN_PRIMARY_FG = "#f3efe6"   # Cream Text
-COLOR_BTN_PRIMARY_HOVER = "#2b2623"
+# Button Styling Tokens
+COLOR_BTN_PRIMARY_BG = "#1c1917"   # Primary button background
+COLOR_BTN_PRIMARY_FG = "#f3efe6"   # Primary button text color
+COLOR_BTN_PRIMARY_HOVER = "#2b2623"# Primary button hover state
 
-COLOR_BTN_SEC_BG = "#faf7f0"
-COLOR_BTN_SEC_FG = "#1c1917"
-COLOR_BTN_SEC_HOVER = "#eae4d7"
+COLOR_BTN_SEC_BG = "#faf7f0"       # Secondary button background
+COLOR_BTN_SEC_FG = "#1c1917"       # Secondary button text color
+COLOR_BTN_SEC_HOVER = "#eae4d7"   # Secondary button hover state
 
-# Network & Protocol Constants
-DEFAULT_UDP_PORT = 50025
-DEFAULT_P2P_PORT = 50026
-DEFAULT_WEB_PORT = 8080
-CHUNK_SIZE_P2P = 8192
-CHUNK_SIZE_WEB = 16384
+# Networking Protocol Constants
+DEFAULT_UDP_PORT = 50025    # Port for UDP broadcast discovery
+DEFAULT_P2P_PORT = 50026    # Default starting port for TCP peer transfers
+DEFAULT_WEB_PORT = 8080     # Default starting port for mobile web sharing
+CHUNK_SIZE_P2P = 65536       # Buffer chunk size for peer-to-peer TCP transfers (64 KB)
+CHUNK_SIZE_WEB = 65536       # Buffer chunk size for mobile HTTP web transfers (64 KB)
 
-# Application Metadata & Default Paths
-APP_TITLE = "LocalDrop"
-APP_VERSION = "2.0"
+# Application Metadata and Default Storage
+APP_TITLE = "DropIt"
+APP_VERSION = "2.1.1"
 WINDOW_GEOMETRY = "500x670"
 DOWNLOADS_DIR = os.path.join(os.getcwd(), "Downloads")
+

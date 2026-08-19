@@ -8,6 +8,11 @@ import config
 from utils import format_size, get_local_ip
 
 class Sender:
+    """
+    Handles peer-to-peer file and folder transmission from the sender client.
+    Performs UDP broadcast discovery using a 4-digit passcode or connects
+    directly to a specified target IP, then streams data over a binary TCP socket.
+    """
     def __init__(self, on_status_callback, on_progress_callback, on_complete_callback):
         self.on_status = on_status_callback
         self.on_progress = on_progress_callback
@@ -16,23 +21,31 @@ class Sender:
         self.running = False
         
     def cancel(self):
-        """Cancels the transfer."""
+        """Cancels an active or pending transfer operation."""
         self.running = False
 
     def discover_and_send(self, filepath, passcode, target_ip=None):
-        """Starts a background thread to discover the receiver and send the file."""
+        """Starts a background thread to discover the receiver and stream payload data."""
         self.running = True
-        threading.Thread(target=self._discover_and_send_thread, args=(filepath, passcode, target_ip), daemon=True).start()
+        threading.Thread(
+            target=self._discover_and_send_thread, 
+            args=(filepath, passcode, target_ip), 
+            daemon=True
+        ).start()
 
     def _discover_receiver(self, passcode, target_ip=None):
+        """
+        Discovers the receiver laptop IP address. If a manual target_ip is provided,
+        it bypasses UDP broadcast and connects directly.
+        """
         if target_ip:
             return target_ip, config.DEFAULT_P2P_PORT
 
-        self.on_status(f"Searching for passcode {passcode} on Wi-Fi...")
-        message = f"LOCALDROP_DISCOVER:{passcode}".encode('utf-8')
+        self.on_status(f"Searching for passcode {passcode} on local network...")
+        message = f"DROPIT_DISCOVER:{passcode}".encode('utf-8')
         local_ip = get_local_ip()
 
-        # UDP Broadcast Discovery
+        # Create UDP socket for broadcast discovery
         udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         udp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
         udp_socket.settimeout(1.0)
@@ -44,6 +57,7 @@ class Sender:
                 pass
 
         try:
+            # Broadcast discovery message to global and subnet broadcast addresses
             udp_socket.sendto(message, ('255.255.255.255', self.udp_port))
             if local_ip != '127.0.0.1' and '.' in local_ip:
                 parts = local_ip.split('.')
@@ -52,7 +66,7 @@ class Sender:
             
             data, addr = udp_socket.recvfrom(1024)
             response = data.decode('utf-8').strip()
-            if response.startswith("LOCALDROP_ACCEPT:"):
+            if response.startswith("DROPIT_ACCEPT:"):
                 tcp_port = int(response.split(":")[1])
                 udp_socket.close()
                 return addr[0], tcp_port
@@ -67,11 +81,11 @@ class Sender:
         return None, None
 
     def _discover_and_send_thread(self, filepath, passcode, target_ip=None):
-        """Threaded function to perform discovery and transfer."""
+        """Worker thread performing receiver discovery and chunked TCP streaming."""
         receiver_ip, receiver_tcp_port = self._discover_receiver(passcode, target_ip)
         
         if not receiver_ip or not receiver_tcp_port:
-            self.on_status("College Wi-Fi Notice: Discovery failed (UDP Broadcast blocked).")
+            self.on_status("Discovery failed. Network UDP Broadcast may be blocked.")
             self.on_complete(False, "DISCOVERY_FAILED")
             return
 
@@ -80,13 +94,14 @@ class Sender:
         if not self.running:
             return
 
-        # 2. TCP Transfer
+        # Establish TCP socket connection
         try:
             is_directory = os.path.isdir(filepath)
             tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             tcp_socket.connect((receiver_ip, receiver_tcp_port))
 
             if is_directory:
+                # Directory Transfer Mode
                 base_dir = os.path.abspath(filepath)
                 foldername = os.path.basename(base_dir) or "Folder"
 
@@ -113,13 +128,15 @@ class Sender:
                         total_bytes += fsize
                         entries.append(('F', rel_file, file_abs, fsize))
 
-                # Directory Flag Header
+                # Send Directory Flag Header ('D')
                 tcp_socket.sendall(b'D')
 
+                # Send folder name length and folder name
                 encoded_foldername = foldername.encode('utf-8')
                 tcp_socket.sendall(struct.pack('>I', len(encoded_foldername)))
                 tcp_socket.sendall(encoded_foldername)
 
+                # Send total byte size and entry count
                 tcp_socket.sendall(struct.pack('>Q', total_bytes))
                 tcp_socket.sendall(struct.pack('>I', len(entries)))
 
@@ -130,6 +147,7 @@ class Sender:
                 last_update_time = start_time
                 last_sent_bytes = 0
 
+                # Iterate and stream directory entries
                 for entry_type, rel_path, abs_path, fsize in entries:
                     if not self.running:
                         break
@@ -173,10 +191,11 @@ class Sender:
                     self.on_complete(False)
 
             else:
-                # Single File Transfer
+                # Single File Transfer Mode
                 filename = os.path.basename(filepath)
                 file_size = os.path.getsize(filepath)
 
+                # Send Single File Flag Header ('F')
                 tcp_socket.sendall(b'F')
 
                 encoded_name = filename.encode('utf-8')
@@ -226,3 +245,4 @@ class Sender:
                 tcp_socket.close()
             except Exception:
                 pass
+

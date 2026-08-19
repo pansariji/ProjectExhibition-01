@@ -4,7 +4,7 @@ MOBILE_UPLOAD_HTML_PAGE = """<!DOCTYPE html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LocalDrop - Upload to Laptop</title>
+    <title>DropIt - Upload to Laptop</title>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -149,7 +149,7 @@ MOBILE_UPLOAD_HTML_PAGE = """<!DOCTYPE html>
 <body>
     <div class="card">
         <div class="tag-pill">LAN ROUTE ACTIVE</div>
-        <h1>LocalDrop</h1>
+        <h1>DropIt</h1>
         <p class="subtitle">Upload files directly to laptop</p>
 
         <div class="drop-zone" id="dropZone">
@@ -232,8 +232,12 @@ MOBILE_UPLOAD_HTML_PAGE = """<!DOCTYPE html>
                     };
 
                     xhr.onload = () => {
-                        if (xhr.status === 200) resolve();
-                        else reject(new Error('Upload failed'));
+                        if (xhr.status === 200) {
+                            uploadedBytes += file.size;
+                            let percent = totalBytes > 0 ? (uploadedBytes / totalBytes) * 100 : 100;
+                            document.getElementById('progressBar').style.width = percent.toFixed(1) + '%';
+                            resolve();
+                        } else reject(new Error('Upload failed'));
                     };
                     xhr.onerror = () => reject(new Error('Network error'));
                     xhr.send(file);
@@ -265,7 +269,7 @@ MOBILE_DOWNLOAD_HTML_PAGE = """<!DOCTYPE html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LocalDrop - Download File</title>
+    <title>DropIt - Download File</title>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -375,7 +379,7 @@ MOBILE_DOWNLOAD_HTML_PAGE = """<!DOCTYPE html>
 <body>
     <div class="card">
         <div class="tag-pill">DOWNLOAD READY</div>
-        <h1>LocalDrop</h1>
+        <h1>DropIt</h1>
         <p class="subtitle">Download shared item to your device</p>
 
         <div class="file-card">

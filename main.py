@@ -1,3 +1,4 @@
+import os
 import customtkinter as ctk
 
 import config
@@ -7,15 +8,28 @@ from ui import HomeFrame, ReceiveFrame, SendFrame
 ctk.set_appearance_mode(config.APPEARANCE_MODE)
 ctk.set_default_color_theme(config.COLOR_THEME)
 
-class LocalDropApp:
+class DropItApp:
+    """
+    Main Application Window & Route Controller.
+    Manages top-level window frame switching, lifecycle of background network listeners,
+    and visual configuration parameters.
+    """
     def __init__(self, root):
         self.root = root
         self.root.title(config.APP_TITLE)
         self.root.geometry(config.WINDOW_GEOMETRY)
         self.root.resizable(False, False)
         self.root.configure(fg_color=config.COLOR_BG)
+
+        # Set Window Icon
+        icon_path = os.path.join(os.path.dirname(__file__), "assets", "logo.ico")
+        if os.path.exists(icon_path):
+            try:
+                self.root.iconbitmap(icon_path)
+            except Exception:
+                pass
         
-        # Active transfer instances
+        # Active network controller references
         self.receiver = None
         self.web_receiver = None
         self.sender = None
@@ -25,12 +39,14 @@ class LocalDropApp:
         self.show_home_screen()
 
     def _switch_frame(self, new_frame_class, **kwargs):
+        """Destroys the current view frame and mounts a new view frame."""
         if self.current_frame is not None:
             self.current_frame.destroy()
         self.current_frame = new_frame_class(self.root, self, **kwargs)
         self.current_frame.pack(fill="both", expand=True)
 
     def show_home_screen(self):
+        """Stops all running network listeners and returns to the home dashboard."""
         if self.receiver:
             self.receiver.stop()
             self.receiver = None
@@ -47,12 +63,15 @@ class LocalDropApp:
         self._switch_frame(HomeFrame)
 
     def show_receive_screen(self):
+        """Navigates to the Receive screen."""
         self._switch_frame(ReceiveFrame)
 
     def show_send_screen(self):
+        """Navigates to the Send screen."""
         self._switch_frame(SendFrame)
 
 if __name__ == "__main__":
     root = ctk.CTk()
-    app = LocalDropApp(root)
+    app = DropItApp(root)
     root.mainloop()
+

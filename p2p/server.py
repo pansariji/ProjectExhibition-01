@@ -8,6 +8,11 @@ import config
 from utils import get_local_ip, format_size
 
 class Receiver:
+    """
+    Handles peer-to-peer file and folder reception on the recipient client.
+    Listens for UDP discovery broadcasts matching the 4-digit passcode, accepts incoming
+    TCP socket connections, unpacks binary metadata headers, and streams incoming payload data directly to disk.
+    """
     def __init__(self, passcode, on_status_callback, on_progress_callback, on_complete_callback):
         self.passcode = passcode
         self.on_status = on_status_callback
@@ -27,7 +32,7 @@ class Receiver:
             os.makedirs(self.downloads_dir)
 
     def start(self):
-        """Starts TCP and UDP servers."""
+        """Binds the TCP listener and starts background threads for UDP and TCP socket handling."""
         self.running = True
         
         self.tcp_server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -49,7 +54,7 @@ class Receiver:
         self.on_status(f"Waiting for Sender with passcode {self.passcode}...")
 
     def stop(self):
-        """Stops all servers."""
+        """Stops active listeners and releases bound socket resources."""
         self.running = False
         if self.tcp_server_socket:
             try:
@@ -63,7 +68,7 @@ class Receiver:
                 pass
 
     def _udp_listener(self):
-        """Listens for UDP discovery broadcast packets."""
+        """Worker thread listening for incoming UDP discovery packets containing the 4-digit passcode."""
         try:
             self.udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             self.udp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -73,18 +78,18 @@ class Receiver:
                 data, addr = self.udp_socket.recvfrom(1024)
                 message = data.decode('utf-8').strip()
                 
-                if message.startswith("LOCALDROP_DISCOVER:"):
+                if message.startswith("DROPIT_DISCOVER:"):
                     received_passcode = message.split(":")[1]
                     if received_passcode == self.passcode:
                         self.on_status(f"Sender found at {addr[0]}. Responding...")
-                        response = f"LOCALDROP_ACCEPT:{self.tcp_port}"
+                        response = f"DROPIT_ACCEPT:{self.tcp_port}"
                         self.udp_socket.sendto(response.encode('utf-8'), addr)
         except Exception as e:
             if self.running:
-                self.on_status(f"UDP Error: {e}")
+                self.on_status(f"UDP Listener Error: {e}")
 
     def _tcp_listener(self):
-        """Handles incoming TCP connections."""
+        """Worker thread accepting incoming peer TCP socket connections."""
         try:
             while self.running:
                 client_sock, addr = self.tcp_server_socket.accept()
@@ -95,10 +100,10 @@ class Receiver:
                 threading.Thread(target=self._handle_client, args=(client_sock,), daemon=True).start()
         except Exception as e:
             if self.running:
-                self.on_status(f"TCP Error: {e}")
+                self.on_status(f"TCP Listener Error: {e}")
 
     def _handle_client(self, client_sock):
-        """Handles file/folder data reception."""
+        """Parses incoming stream headers and writes file or folder payloads to disk."""
         try:
             raw_flag = self._recvall(client_sock, 1)
             if not raw_flag:
@@ -106,14 +111,13 @@ class Receiver:
             flag = raw_flag.decode('utf-8')
 
             if flag == 'D':
-                # Receive folder name length & name
+                # Parse folder header (folder name length, folder name, total size, entry count)
                 raw_namelen = self._recvall(client_sock, 4)
                 if not raw_namelen:
                     return
                 name_len = struct.unpack('>I', raw_namelen)[0]
                 foldername = self._recvall(client_sock, name_len).decode('utf-8')
 
-                # Total size & entry count
                 raw_totalsize = self._recvall(client_sock, 8)
                 total_size = struct.unpack('>Q', raw_totalsize)[0]
 
@@ -189,14 +193,13 @@ class Receiver:
                     self.on_complete(False, None)
 
             elif flag == 'F':
-                # Receive filename length & name
+                # Parse single file header (filename length, filename, file size)
                 raw_namelen = self._recvall(client_sock, 4)
                 if not raw_namelen:
                     return
                 name_len = struct.unpack('>I', raw_namelen)[0]
                 filename = self._recvall(client_sock, name_len).decode('utf-8')
 
-                # Receive file size
                 raw_filesize = self._recvall(client_sock, 8)
                 file_size = struct.unpack('>Q', raw_filesize)[0]
 
@@ -247,7 +250,7 @@ class Receiver:
             client_sock.close()
 
     def _recvall(self, sock, n):
-        """Helper to strictly receive n bytes."""
+        """Ensures exact reception of n bytes from the TCP stream before proceeding."""
         data = bytearray()
         while len(data) < n:
             packet = sock.recv(n - len(data))
@@ -255,3 +258,4 @@ class Receiver:
                 return None
             data.extend(packet)
         return data
+

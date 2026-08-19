@@ -8,6 +8,11 @@ from p2p import Receiver
 from web import WebReceiver
 
 class ReceiveFrame(ctk.CTkFrame):
+    """
+    UI Frame managing incoming file/folder reception.
+    Displays a 4-digit passcode & local IP for laptop peer-to-peer transfers,
+    or a QR code for receiving file uploads from mobile browser users.
+    """
     def __init__(self, parent, controller):
         super().__init__(parent, fg_color=config.COLOR_BG)
         self.controller = controller
@@ -16,7 +21,7 @@ class ReceiveFrame(ctk.CTkFrame):
         self.received_filepath = None
         self.ctk_qr_img = None
         
-        # Top Bar
+        # Top Navigation Bar
         top_bar = ctk.CTkFrame(self, fg_color="transparent")
         top_bar.pack(fill="x", padx=20, pady=(15, 5))
         
@@ -61,7 +66,7 @@ class ReceiveFrame(ctk.CTkFrame):
         self._setup_qr_tab()
         self._setup_passcode_tab()
         
-        # Bottom Status Panel
+        # Status and Action Button Panel
         self.status_card = ctk.CTkFrame(
             self, 
             corner_radius=16, 
@@ -118,6 +123,7 @@ class ReceiveFrame(ctk.CTkFrame):
         self._start_web_receiver()
 
     def _setup_qr_tab(self):
+        """Initializes components for mobile web browser reception."""
         lbl_inst = ctk.CTkLabel(
             self.tab_qr, 
             text="Scan with mobile camera to upload:", 
@@ -151,6 +157,7 @@ class ReceiveFrame(ctk.CTkFrame):
         lbl_url.pack(pady=8)
 
     def _setup_passcode_tab(self):
+        """Initializes components for laptop-to-laptop passcode pairing."""
         lbl_inst = ctk.CTkLabel(
             self.tab_pass, 
             text="Tell sender laptop to enter this passcode:", 
@@ -186,6 +193,7 @@ class ReceiveFrame(ctk.CTkFrame):
         lbl_ip.pack(pady=4)
 
     def _update_tab_styles(self):
+        """Updates mode tab styling for enhanced visual clarity."""
         try:
             sb = self.tabview._segmented_button
             cur = self.tabview.get()
@@ -206,6 +214,7 @@ class ReceiveFrame(ctk.CTkFrame):
             pass
 
     def _on_tab_changed(self):
+        """Switches active network listeners when the selected tab changes."""
         self._update_tab_styles()
         selected_tab = self.tabview.get()
         if "Mobile" in selected_tab:
@@ -214,6 +223,7 @@ class ReceiveFrame(ctk.CTkFrame):
             self._start_passcode_receiver()
 
     def _start_web_receiver(self):
+        """Starts the HTTP web server listener for receiving mobile uploads."""
         if self.controller.receiver:
             self.controller.receiver.stop()
             self.controller.receiver = None
@@ -236,6 +246,7 @@ class ReceiveFrame(ctk.CTkFrame):
             self.lbl_qr_image.configure(image=self.ctk_qr_img)
 
     def _start_passcode_receiver(self):
+        """Starts the UDP broadcast and TCP socket listeners for laptop peer transfers."""
         if self.controller.web_receiver:
             self.controller.web_receiver.stop()
             self.controller.web_receiver = None
@@ -252,13 +263,16 @@ class ReceiveFrame(ctk.CTkFrame):
         self.ip_var.set(f"Receiver IP: {self.controller.receiver.local_ip}")
 
     def update_status(self, msg):
+        """Thread-safe status text updater."""
         self.controller.root.after(0, lambda: self.status_var.set(msg))
 
     def update_progress(self, percent, speed_str):
+        """Thread-safe progress bar and speed display updater."""
         self.controller.root.after(0, lambda: self.progress_bar.set(percent / 100.0))
         self.controller.root.after(0, lambda: self.speed_var.set(speed_str))
         
     def on_complete(self, success, filepath=None):
+        """Enables the 'Show Received Item' button upon successful transfer."""
         def reset_ui():
             if success and filepath:
                 self.received_filepath = filepath
@@ -266,8 +280,10 @@ class ReceiveFrame(ctk.CTkFrame):
         self.controller.root.after(0, reset_ui)
 
     def open_file(self):
+        """Opens system file explorer focusing on the received item."""
         if self.received_filepath and os.path.exists(self.received_filepath):
             if os.name == 'nt':
                 subprocess.run(["explorer", "/select,", os.path.normpath(self.received_filepath)])
             else:
                 subprocess.run(["xdg-open", self.received_filepath])
+
