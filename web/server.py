@@ -204,17 +204,40 @@ class WebReceiver:
                 pass
 
     def notify_progress(self, rel_path, received, total, elapsed, bytes_diff):
-        """Reports transfer progress percentage and speed."""
+        """Reports transfer progress percentage and speed metrics."""
+        now = time.time()
+        if not hasattr(self, '_start_time') or received <= bytes_diff:
+            self._start_time = now
+            self._peak_bytes_sec = 0.0
+
+        self._last_total_received = received
+        self._last_total = total
+        total_elapsed = max(now - self._start_time, 0.001)
+        cur_bytes_sec = (bytes_diff / elapsed) if elapsed > 0 else 0
+        avg_bytes_sec = (received / total_elapsed) if total_elapsed > 0 else 0
+        self._peak_bytes_sec = max(getattr(self, '_peak_bytes_sec', 0.0), cur_bytes_sec)
+
         if self.on_progress:
             percent = (received / total * 100) if total > 0 else 100.0
-            bytes_sec = (bytes_diff / elapsed) if elapsed > 0 else 0
-            speed_str = f"{format_size(bytes_sec)}/s"
-            self.on_progress(percent, speed_str)
+            cur_speed_str = f"{format_size(cur_bytes_sec)}/s"
+            avg_speed_str = f"{format_size(avg_bytes_sec)}/s"
+            peak_speed_str = f"{format_size(self._peak_bytes_sec)}/s"
+            size_info_str = f"{format_size(received)} / {format_size(total)}"
+            self.on_progress(percent, cur_speed_str, avg_speed_str, peak_speed_str, size_info_str)
         if self.on_status:
             self.on_status(f"Receiving {rel_path} ({format_size(received)} / {format_size(total)})")
 
     def notify_complete(self, filepath):
         """Triggers transfer completion callbacks."""
+        if self.on_progress:
+            now = time.time()
+            total_elapsed = max(now - getattr(self, '_start_time', now), 0.001)
+            rec = getattr(self, '_last_total_received', 0)
+            tot = getattr(self, '_last_total', 0)
+            final_avg = rec / total_elapsed if total_elapsed > 0 else 0
+            peak_str = f"{format_size(getattr(self, '_peak_bytes_sec', 0.0))}/s"
+            size_str = f"{format_size(rec)} / {format_size(tot)}" if tot > 0 else "--"
+            self.on_progress(100.0, "Done", f"{format_size(final_avg)}/s", peak_str, size_str)
         if self.on_status:
             self.on_status(f"Saved: {os.path.basename(filepath)}")
         if self.on_complete:
@@ -289,19 +312,41 @@ class WebSender:
                 pass
 
     def notify_progress(self, sent, total, elapsed, bytes_diff):
-        """Reports transfer progress percentage and transfer speed."""
+        """Reports transfer progress percentage and transfer speed metrics."""
+        now = time.time()
+        if not hasattr(self, '_start_time') or sent <= bytes_diff:
+            self._start_time = now
+            self._peak_bytes_sec = 0.0
+
+        self._last_sent = sent
+        total_elapsed = max(now - self._start_time, 0.001)
+        cur_bytes_sec = (bytes_diff / elapsed) if elapsed > 0 else 0
+        avg_bytes_sec = (sent / total_elapsed) if total_elapsed > 0 else 0
+        self._peak_bytes_sec = max(getattr(self, '_peak_bytes_sec', 0.0), cur_bytes_sec)
+
         if self.on_progress:
             percent = (sent / total * 100) if total > 0 else 100.0
-            bytes_sec = (bytes_diff / elapsed) if elapsed > 0 else 0
-            speed_str = f"{format_size(bytes_sec)}/s"
-            self.on_progress(percent, speed_str)
+            cur_speed_str = f"{format_size(cur_bytes_sec)}/s"
+            avg_speed_str = f"{format_size(avg_bytes_sec)}/s"
+            peak_speed_str = f"{format_size(self._peak_bytes_sec)}/s"
+            size_info_str = f"{format_size(sent)} / {format_size(total)}"
+            self.on_progress(percent, cur_speed_str, avg_speed_str, peak_speed_str, size_info_str)
         if self.on_status:
             self.on_status(f"Sending {self.target_filename} ({format_size(sent)} / {format_size(total)})")
 
     def notify_complete(self, success):
         """Triggers transfer completion callbacks."""
+        if self.on_progress and success:
+            now = time.time()
+            total_elapsed = max(now - getattr(self, '_start_time', now), 0.001)
+            sent = getattr(self, '_last_sent', self.file_size)
+            final_avg = sent / total_elapsed if total_elapsed > 0 else 0
+            peak_str = f"{format_size(getattr(self, '_peak_bytes_sec', 0.0))}/s"
+            size_str = f"{format_size(sent)} / {format_size(self.file_size)}"
+            self.on_progress(100.0, "Done", f"{format_size(final_avg)}/s", peak_str, size_str)
         if self.on_status:
             self.on_status("Transfer complete!" if success else "Transfer failed.")
         if self.on_complete:
+            self.on_complete(success)
             self.on_complete(success)
 
