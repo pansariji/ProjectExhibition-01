@@ -27,12 +27,12 @@ COLOR_BTN_SEC_HOVER = "#eae4d7"   # Secondary button hover state
 DEFAULT_UDP_PORT = 50025    # Port for UDP broadcast discovery
 DEFAULT_P2P_PORT = 50026    # Default starting port for TCP peer transfers
 DEFAULT_WEB_PORT = 8080     # Default starting port for mobile web sharing
-CHUNK_SIZE_P2P = 8192       # Buffer chunk size for peer-to-peer TCP transfers (8 KB)
-CHUNK_SIZE_WEB = 16384      # Buffer chunk size for mobile HTTP web transfers (16 KB)
+CHUNK_SIZE_P2P = 65536       # Buffer chunk size for peer-to-peer TCP transfers (64 KB)
+CHUNK_SIZE_WEB = 65536       # Buffer chunk size for mobile HTTP web transfers (64 KB)
 
 # Application Metadata and Default Storage
 APP_TITLE = "DropIt"
-APP_VERSION = "2.0"
+APP_VERSION = "2.1.1"
 WINDOW_GEOMETRY = "500x670"
 DOWNLOADS_DIR = os.path.join(os.getcwd(), "Downloads")
 

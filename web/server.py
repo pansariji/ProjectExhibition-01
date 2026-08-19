@@ -20,12 +20,26 @@ class DropItHTTPHandler(http.server.BaseHTTPRequestHandler):
         """Suppresses default HTTP server stdout logging."""
         pass
 
+    def send_cors_headers(self):
+        """Adds CORS and cache headers for universal browser compatibility (Brave, Opera, Chrome, Safari)."""
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'X-Relative-Path, Content-Type, Content-Length')
+        self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
+
+    def do_OPTIONS(self):
+        """Handles HTTP OPTIONS preflight requests sent by privacy-focused browsers like Brave and Opera."""
+        self.send_response(200)
+        self.send_cors_headers()
+        self.end_headers()
+
     def do_GET(self):
         """Handles HTTP GET requests for rendering web pages or streaming downloads."""
         # Web Receiver Mode (Mobile browser uploads files to Laptop)
         if hasattr(self.server, 'web_receiver'):
             if self.path == '/' or self.path == '/index.html':
                 self.send_response(200)
+                self.send_cors_headers()
                 self.send_header('Content-type', 'text/html; charset=utf-8')
                 self.end_headers()
                 self.wfile.write(MOBILE_UPLOAD_HTML_PAGE.encode('utf-8'))
@@ -47,6 +61,7 @@ class DropItHTTPHandler(http.server.BaseHTTPRequestHandler):
                                                 .replace("{{ITEM_TYPE}}", item_type)
                 
                 self.send_response(200)
+                self.send_cors_headers()
                 self.send_header('Content-type', 'text/html; charset=utf-8')
                 self.end_headers()
                 self.wfile.write(page.encode('utf-8'))
@@ -57,6 +72,7 @@ class DropItHTTPHandler(http.server.BaseHTTPRequestHandler):
                     filename = os.path.basename(ws.target_filename)
 
                     self.send_response(200)
+                    self.send_cors_headers()
                     self.send_header('Content-type', 'application/octet-stream')
                     self.send_header('Content-Disposition', f'attachment; filename="{filename}"')
                     self.send_header('Content-Length', str(ws.file_size))
@@ -81,6 +97,7 @@ class DropItHTTPHandler(http.server.BaseHTTPRequestHandler):
                                 last_update = now
                                 last_sent = sent
 
+                    ws.notify_progress(ws.file_size, ws.file_size, max(time.time() - start_time, 0.001), ws.file_size - last_sent)
                     ws.notify_complete(True)
 
                 except Exception as e:
@@ -123,9 +140,11 @@ class DropItHTTPHandler(http.server.BaseHTTPRequestHandler):
                             last_update = now
                             last_received = received
 
+                self.server.web_receiver.notify_progress(rel_path, content_len, content_len, max(time.time() - start_time, 0.001), content_len - last_received)
                 self.server.web_receiver.notify_complete(target_path)
 
                 self.send_response(200)
+                self.send_cors_headers()
                 self.send_header('Content-type', 'application/json')
                 self.end_headers()
                 self.wfile.write(b'{"status": "ok"}')

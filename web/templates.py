@@ -232,8 +232,12 @@ MOBILE_UPLOAD_HTML_PAGE = """<!DOCTYPE html>
                     };
 
                     xhr.onload = () => {
-                        if (xhr.status === 200) resolve();
-                        else reject(new Error('Upload failed'));
+                        if (xhr.status === 200) {
+                            uploadedBytes += file.size;
+                            let percent = totalBytes > 0 ? (uploadedBytes / totalBytes) * 100 : 100;
+                            document.getElementById('progressBar').style.width = percent.toFixed(1) + '%';
+                            resolve();
+                        } else reject(new Error('Upload failed'));
                     };
                     xhr.onerror = () => reject(new Error('Network error'));
                     xhr.send(file);
