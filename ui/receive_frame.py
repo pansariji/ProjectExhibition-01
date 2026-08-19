@@ -281,9 +281,12 @@ class ReceiveFrame(ctk.CTkFrame):
 
     def open_file(self):
         """Opens system file explorer focusing on the received item."""
+        import sys
         if self.received_filepath and os.path.exists(self.received_filepath):
             if os.name == 'nt':
                 subprocess.run(["explorer", "/select,", os.path.normpath(self.received_filepath)])
+            elif sys.platform == 'darwin':
+                subprocess.run(["open", "-R", self.received_filepath])
             else:
-                subprocess.run(["xdg-open", self.received_filepath])
+                subprocess.run(["xdg-open", os.path.dirname(self.received_filepath)])
 

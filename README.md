@@ -21,7 +21,6 @@
 
 ## 🌟 Key Features
 
-- **🎨 Warm Cream Retro-Tech Editorial UI**: Powered by CustomTkinter featuring rounded cards, Space Grotesk and Consolas typography, real-time speed & progress indicators, and an elegant editorial design.
 - **📱 Zero-Install Mobile Web Sharing (QR Code)**:
   - **Upload to Laptop**: Scan the QR code displayed in Receive Mode on your phone (iOS/Android) to send files or full folder trees directly to your computer.
   - **Download from Laptop**: Scan the QR code in Send Mode to download files or auto-zipped folder archives straight to your phone.
@@ -71,8 +70,7 @@
 > 💡 **Troubleshooting Campus / Restricted Wi-Fi (AP Isolation)**:
 > University and enterprise Wi-Fi networks block peer-to-peer device scanning. You can easily bypass AP isolation by:
 > 1. **Direct IP Entry**: Entering the Receiver IP manually in the Sender tab.
-> 2. **Mobile Hotspot**: Turning ON phone Mobile Hotspot and connecting your laptop to it (delivers **50–80 MB/s**).
-> 3. **Firewall Rule**: Ensuring Python is allowed through Windows Defender Firewall for Public & Private network profiles.
+> 2. **Firewall Rule**: Ensuring Python is allowed through Windows Defender Firewall for Public & Private network profiles.
 
 ---
 
