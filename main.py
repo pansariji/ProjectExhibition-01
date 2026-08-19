@@ -2,6 +2,7 @@ import os
 import customtkinter as ctk
 
 import config
+from utils import get_resource_path
 from ui import HomeFrame, ReceiveFrame, SendFrame
 
 # Global CustomTkinter appearance and theme settings
@@ -22,7 +23,7 @@ class DropItApp:
         self.root.configure(fg_color=config.COLOR_BG)
 
         # Set Window Icon
-        icon_path = os.path.join(os.path.dirname(__file__), "assets", "logo.ico")
+        icon_path = get_resource_path(os.path.join("assets", "logo.ico"))
         if os.path.exists(icon_path):
             try:
                 self.root.iconbitmap(icon_path)

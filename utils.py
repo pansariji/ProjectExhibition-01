@@ -1,7 +1,19 @@
+import sys
 import socket
 import random
 import os
 import config
+
+def get_resource_path(relative_path):
+    """
+    Resolves the absolute path to bundled resource assets.
+    Handles standard development environment paths as well as PyInstaller frozen sys._MEIPASS paths.
+    """
+    try:
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.dirname(os.path.abspath(__file__))
+    return os.path.join(base_path, relative_path)
 
 def get_local_ip():
     """

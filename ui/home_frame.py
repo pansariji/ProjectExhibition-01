@@ -2,6 +2,7 @@ import os
 from PIL import Image
 import customtkinter as ctk
 import config
+from utils import get_resource_path
 
 class HomeFrame(ctk.CTkFrame):
     """
@@ -24,7 +25,7 @@ class HomeFrame(ctk.CTkFrame):
         hero_card.pack(fill="x", padx=28, pady=(25, 20))
 
         # Brand Logo Header
-        logo_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets", "logo.png")
+        logo_path = get_resource_path(os.path.join("assets", "logo.png"))
         if os.path.exists(logo_path):
             try:
                 pil_logo = Image.open(logo_path)
