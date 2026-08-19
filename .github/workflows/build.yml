@@ -5,6 +5,9 @@ on:
     types: [published]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     name: Build on ${{ matrix.os }}
@@ -58,3 +61,10 @@ jobs:
       with:
         name: ${{ matrix.artifact_name }}
         path: ${{ matrix.asset_path }}
+
+    - name: Upload Release Asset to GitHub Release
+      if: github.event_name == 'release'
+      uses: softprops/action-gh-release@v2
+      with:
+        files: ${{ matrix.asset_path }}
+
